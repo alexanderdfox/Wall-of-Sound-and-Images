@@ -437,6 +437,7 @@ body {
   cursor: pointer;
   font-size: inherit;
   padding: 0;
+  text-decoration: none;
 }
 .user-stat-link:hover { text-decoration: underline; }
 
@@ -532,8 +533,32 @@ body {
 /* Friends */
 .friends-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
 .friends-section label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
-.add-friend-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.add-friend-row { display: flex; gap: 8px; margin-bottom: 16px; position: relative; }
 .add-friend-row input { flex: 1; }
+.friend-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 60px;
+  margin-top: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 50;
+  padding: 4px 0;
+}
+.friend-search-result-item {
+  display: block;
+  padding: 10px 16px;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.15s;
+}
+.friend-search-result-item:hover { background: var(--border); }
 .friends-list, .pending-requests { font-size: 0.9rem; }
 .friend-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .friend-item a { color: var(--accent); text-decoration: none; }
@@ -576,7 +601,9 @@ body {
   text-decoration: none;
   transition: border-color 0.2s, background 0.2s;
 }
-.sound-card:hover {
+a.sound-card { cursor: pointer; }
+.sound-card:hover,
+.sound-card-clickable:hover {
   border-color: var(--accent);
   background: var(--accent-muted);
 }
@@ -609,8 +636,12 @@ body {
   text-overflow: ellipsis;
 }
 
+.sound-card-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
 .sound-card-meta {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+.sound-card-stats { font-size: 0.8rem; color: var(--text-muted); }
+.sound-card-clickable { cursor: pointer; }
+.sound-modal-audio { margin-bottom: 16px; }

@@ -532,6 +532,46 @@ async function loadFriends() {
   }
 }
 
+let friendSearchTimeout = null;
+document.getElementById('add-friend-username')?.addEventListener('input', () => {
+  const input = document.getElementById('add-friend-username');
+  const resultsEl = document.getElementById('friend-search-results');
+  const q = (input?.value || '').trim().replace(/^@/, '');
+  clearTimeout(friendSearchTimeout);
+  if (!q || q.length < 2) {
+    resultsEl.style.display = 'none';
+    return;
+  }
+  friendSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`${API}/users/search?q=${encodeURIComponent(q)}`);
+      const data = res.ok ? await res.json() : { users: [] };
+      const users = data.users || [];
+      if (users.length === 0) {
+        resultsEl.innerHTML = '<div class="friend-search-result-item" style="color:var(--text-muted)">No users found</div>';
+      } else {
+        resultsEl.innerHTML = users.map((u) =>
+          `<button type="button" class="friend-search-result-item" data-username="${escapeHtml(u.username)}">@${escapeHtml(u.username)}</button>`
+        ).join('');
+        resultsEl.querySelectorAll('button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            input.value = '@' + btn.dataset.username;
+            resultsEl.style.display = 'none';
+          });
+        });
+      }
+      resultsEl.style.display = 'block';
+    } catch (_) {
+      resultsEl.style.display = 'none';
+    }
+  }, 250);
+});
+document.getElementById('add-friend-username')?.addEventListener('blur', () => {
+  setTimeout(() => {
+    document.getElementById('friend-search-results').style.display = 'none';
+  }, 150);
+});
+
 document.getElementById('btn-add-friend')?.addEventListener('click', async () => {
   const input = document.getElementById('add-friend-username');
   const username = (input?.value || '').trim().replace(/^@/, '');
@@ -545,6 +585,7 @@ document.getElementById('btn-add-friend')?.addEventListener('click', async () =>
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     input.value = '';
+    document.getElementById('friend-search-results').style.display = 'none';
     loadFriends();
     alert(data.status === 'accepted' ? 'You are now friends!' : 'Friend request sent');
   } catch (err) {

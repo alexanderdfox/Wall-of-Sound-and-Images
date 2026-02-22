@@ -12,6 +12,17 @@ export async function onRequest(context) {
   if (!db) return json({ error: 'Database not configured' }, 500);
 
   try {
+    // GET /api/users/search?q=xxx - search users by username (for add friend)
+    if (path === 'users/search' && method === 'GET') {
+      const q = (url.searchParams.get('q') || '').trim().replace(/^@/, '').slice(0, 50);
+      if (!q || q.length < 2) return json({ users: [] });
+      const rows = await db.prepare(
+        'SELECT id, username FROM users WHERE username LIKE ? ORDER BY username LIMIT 10'
+      ).bind('%' + q + '%').all();
+      const users = (rows.results || []).map((r) => ({ id: r.id, username: r.username || 'user' }));
+      return json({ users });
+    }
+
     // POST /api/auth/signup
     if (path === 'auth/signup' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
@@ -147,10 +158,12 @@ export async function onRequest(context) {
       }
       const canViewOwn = viewerId === id;
       const where = buildUserSoundsWhere(id, viewerId, canViewOwn);
-      const sounds = await db.prepare(
-        `SELECT num, hash, caption, duration, created_at as createdAt FROM sounds ${where.sql} ORDER BY num DESC LIMIT 24`
+      const rows = await db.prepare(
+        `SELECT num, hash, caption, duration, created_at as createdAt, user_id as userId FROM sounds ${where.sql} ORDER BY num DESC LIMIT 24`
       ).bind(...where.params).all().catch(() => ({ results: [] }));
-      return json({ items: sounds.results || [], user: { id: user.id, username: user.username || 'user' } });
+      const raw = (rows.results || []).map((r) => ({ ...r, username: user.username || 'user' }));
+      const items = await enrichSoundsWithLikesComments(db, raw, viewerId);
+      return json({ items, user: { id: user.id, username: user.username || 'user' } });
     }
 
     // GET /api/user/:id/images (must be before /api/user/:id)
@@ -379,6 +392,72 @@ export async function onRequest(context) {
         exists: !!sound,
         sound: sound ? { num: sound.num, hash: sound.hash, caption: sound.caption, duration: sound.duration } : null,
       });
+    }
+
+    // GET /api/sound/n/:num/comments
+    if (path.match(/^sound\/n\/\d+\/comments$/) && method === 'GET') {
+      const num = parseInt(path.split('/')[2], 10);
+      if (isNaN(num) || num < 1) return json({ error: 'Invalid sound' }, 400);
+      try {
+        const rows = await db.prepare(
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? ORDER BY c.created_at ASC'
+        ).bind(num).all();
+        return json({ comments: rows.results || [] });
+      } catch (e) {
+        if (/no such table: sound_comments/i.test(e?.message)) return json({ comments: [] });
+        throw e;
+      }
+    }
+
+    // POST /api/sound/n/:num/comments
+    if (path.match(/^sound\/n\/\d+\/comments$/) && method === 'POST') {
+      const num = parseInt(path.split('/')[2], 10);
+      if (isNaN(num) || num < 1) return json({ error: 'Invalid sound' }, 400);
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const body = await request.json().catch(() => ({}));
+      const text = (body?.text || '').toString().trim().slice(0, 500);
+      if (!text) return json({ error: 'Comment text required' }, 400);
+      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ?').bind(num).first();
+      if (!sound) return json({ error: 'Sound not found' }, 404);
+      try {
+        await db.prepare('INSERT INTO sound_comments (id, sound_num, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)')
+          .bind(crypto.randomUUID(), num, payload.sub, text, new Date().toISOString()).run();
+        const rows = await db.prepare(
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? ORDER BY c.created_at ASC'
+        ).bind(num).all();
+        return json({ comments: rows.results || [] });
+      } catch (e) {
+        if (/no such table: sound_comments/i.test(e?.message)) return json({ error: 'Comments not available' }, 500);
+        throw e;
+      }
+    }
+
+    // POST /api/sound/n/:num/like - toggle like
+    if (path.match(/^sound\/n\/\d+\/like$/) && method === 'POST') {
+      const num = parseInt(path.split('/')[2], 10);
+      if (isNaN(num) || num < 1) return json({ error: 'Invalid sound' }, 400);
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ?').bind(num).first();
+      if (!sound) return json({ error: 'Sound not found' }, 404);
+      try {
+        const existing = await db.prepare('SELECT 1 FROM sound_likes WHERE sound_num = ? AND user_id = ?').bind(num, payload.sub).first();
+        if (existing) {
+          await db.prepare('DELETE FROM sound_likes WHERE sound_num = ? AND user_id = ?').bind(num, payload.sub).run();
+          return json({ liked: false });
+        }
+        await db.prepare('INSERT INTO sound_likes (sound_num, user_id, created_at) VALUES (?, ?, ?)')
+          .bind(num, payload.sub, new Date().toISOString()).run();
+        return json({ liked: true });
+      } catch (e) {
+        if (/no such table: sound_likes/i.test(e?.message)) return json({ error: 'Likes not available' }, 500);
+        throw e;
+      }
     }
 
     // GET /api/catalog
@@ -862,6 +941,34 @@ async function canViewImage(db, img, viewerId) {
   } catch (_) {
     return false;
   }
+}
+
+async function enrichSoundsWithLikesComments(db, sounds, viewerId) {
+  const nums = (sounds || []).map((s) => s.num).filter(Boolean);
+  if (nums.length === 0) return sounds;
+  let likeCounts = {}, commentCounts = {}, likedByMe = {};
+  try {
+    const likeRows = await db.prepare(
+      'SELECT sound_num, COUNT(*) as c FROM sound_likes WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') GROUP BY sound_num'
+    ).bind(...nums).all();
+    (likeRows.results || []).forEach((r) => { likeCounts[r.sound_num] = r.c; });
+    const commentRows = await db.prepare(
+      'SELECT sound_num, COUNT(*) as c FROM sound_comments WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') GROUP BY sound_num'
+    ).bind(...nums).all();
+    (commentRows.results || []).forEach((r) => { commentCounts[r.sound_num] = r.c; });
+    if (viewerId) {
+      const myLikes = await db.prepare(
+        'SELECT sound_num FROM sound_likes WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') AND user_id = ?'
+      ).bind(...nums, viewerId).all();
+      (myLikes.results || []).forEach((r) => { likedByMe[r.sound_num] = true; });
+    }
+  } catch (_) { /* tables may not exist */ }
+  return sounds.map((s) => ({
+    ...s,
+    likeCount: likeCounts[s.num] || 0,
+    commentCount: commentCounts[s.num] || 0,
+    likedByMe: !!likedByMe[s.num],
+  }));
 }
 
 async function enrichPostsWithLikesComments(db, posts, viewerId) {

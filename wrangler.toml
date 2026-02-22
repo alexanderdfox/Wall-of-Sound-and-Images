@@ -4,7 +4,7 @@ pages_build_output_dir = "public"
 
 # JWT signing for auth. Override in production: wrangler pages secret put JWT_SECRET --project-name=tchoff
 [vars]
-JWT_SECRET = "tchoff-jwt-secret-rotate-in-production-64chars-minimum-for-security"
+JWT_SECRET = "bd504d11115135b5e15b25c161d81e5dd5e18d161c52b51e5b53151111d405db"
 
 # Run: wrangler d1 create tchoff-db  (then paste database_id below)
 [[d1_databases]]

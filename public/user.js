@@ -59,7 +59,7 @@ async function loadUserPage() {
       </div>
     `;
 
-    renderSoundsGrid(document.getElementById('sounds-grid'), sounds);
+    renderSoundsGrid(document.getElementById('sounds-grid'), sounds, userData.username);
     const soundsSection = document.getElementById('sounds-section');
     if (soundsSection) soundsSection.style.display = sounds.length ? 'block' : 'none';
 
@@ -94,24 +94,117 @@ async function loadPage(page) {
   }
 }
 
-function renderSoundsGrid(gridEl, sounds) {
+const soundModal = document.getElementById('sound-modal');
+const soundModalBody = document.getElementById('sound-modal-body');
+
+function renderSoundsGrid(gridEl, sounds, profileUsername) {
   if (!gridEl) return;
   gridEl.innerHTML = '';
   if (!sounds.length) return;
 
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
+
   sounds.forEach((s) => {
-    const card = document.createElement('a');
-    card.className = 'sound-card';
-    card.href = `/sound.html#${s.hash}`;
+    const card = document.createElement('div');
+    card.className = 'sound-card sound-card-clickable';
     const dur = s.duration ? `${s.duration}s` : '';
     card.innerHTML = `
       <div class="sound-card-wave" aria-hidden="true">🔊</div>
       <div class="sound-card-info">
         <span class="sound-card-caption">${escapeHtml(s.caption || 'Sound')}</span>
-        <span class="sound-card-meta">#${s.num || '?'} ${dur ? '· ' + dur : ''}</span>
+        <div class="sound-card-meta-row">
+          <span class="sound-card-meta">#${s.num || '?'} ${dur ? '· ' + dur : ''}</span>
+          <span class="sound-card-stats">👍 ${s.likeCount ?? 0} · 💬 ${s.commentCount ?? 0}</span>
+        </div>
       </div>
     `;
+    card.addEventListener('click', () => openSoundModal(s, profileUsername));
     gridEl.appendChild(card);
+  });
+}
+
+async function openSoundModal(sound, profileUsername) {
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
+  soundModalBody.innerHTML = `
+    <div class="sound-modal-audio">
+      <audio controls src="/s/${sound.hash}" style="width:100%;max-width:480px"></audio>
+    </div>
+    <div class="sound-modal-meta">
+      <div class="lightbox-hash">@${escapeHtml(profileUsername || 'user')} · #${sound.num || '?'}</div>
+      ${sound.caption ? `<p>${escapeHtml(sound.caption)}</p>` : ''}
+      <div class="lightbox-actions">
+        <button type="button" class="btn-like ${sound.likedByMe ? 'liked' : ''}" data-num="${sound.num}" aria-label="Like">
+          👍 <span class="like-count">${sound.likeCount ?? 0}</span>
+        </button>
+        <span class="lightbox-comment-count"><span class="comment-count">${sound.commentCount ?? 0}</span> comment(s)</span>
+      </div>
+    </div>
+    <div class="lightbox-comments" id="sound-comments">
+      <div class="comments-list" id="sound-comments-list"></div>
+      ${authToken ? `
+        <div class="comment-form">
+          <input type="text" id="sound-comment-input" placeholder="Add a comment…" maxlength="500">
+          <button type="button" class="btn btn-primary btn-sound-comment-submit" data-num="${sound.num}">Post</button>
+        </div>
+      ` : '<p class="comment-hint">Sign in to comment</p>'}
+    </div>
+  `;
+  soundModal.showModal();
+
+  const loadSoundComments = async () => {
+    try {
+      const res = await fetch(`${API}/sound/n/${sound.num}/comments`);
+      const data = res.ok ? await res.json() : { comments: [] };
+      const list = soundModalBody.querySelector('#sound-comments-list');
+      list.innerHTML = (data.comments || []).map((c) =>
+        `<div class="comment"><span class="comment-user">@${escapeHtml(c.username || '')}</span> ${escapeHtml(c.text)}</div>`
+      ).join('') || '<p class="no-comments">No comments yet</p>';
+    } catch (_) {
+      soundModalBody.querySelector('#sound-comments-list').innerHTML = '<p class="no-comments">Failed to load</p>';
+    }
+  };
+  loadSoundComments();
+
+  soundModalBody.querySelector('.btn-like')?.addEventListener('click', async () => {
+    if (!authToken) return;
+    const btn = soundModalBody.querySelector('.btn-like');
+    const countEl = btn?.querySelector('.like-count');
+    try {
+      const res = await fetch(`${API}/sound/n/${sound.num}/like`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + authToken },
+      });
+      const data = await res.json();
+      btn.classList.toggle('liked', data.liked);
+      countEl.textContent = parseInt(countEl?.textContent || '0', 10) + (data.liked ? 1 : -1);
+    } catch (_) {}
+  });
+
+  const submitSoundComment = async () => {
+    const input = soundModalBody.querySelector('#sound-comment-input');
+    const text = input?.value?.trim();
+    if (!text || !authToken) return;
+    try {
+      const res = await fetch(`${API}/sound/n/${sound.num}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (data.comments) {
+        input.value = '';
+        const list = soundModalBody.querySelector('#sound-comments-list');
+        list.innerHTML = data.comments.map((c) =>
+          `<div class="comment"><span class="comment-user">@${escapeHtml(c.username || '')}</span> ${escapeHtml(c.text)}</div>`
+        ).join('') || '<p class="no-comments">No comments yet</p>';
+        const cc = soundModalBody.querySelector('.comment-count');
+        if (cc) cc.textContent = data.comments.length;
+      }
+    } catch (_) {}
+  };
+  soundModalBody.querySelector('.btn-sound-comment-submit')?.addEventListener('click', submitSoundComment);
+  soundModalBody.querySelector('#sound-comment-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitSoundComment(); }
   });
 }
 
@@ -170,6 +263,9 @@ function renderPagination(el, total, page, userId) {
 
 document.getElementById('close-post').addEventListener('click', () => postModal.close());
 postModal.addEventListener('click', (e) => { if (e.target === postModal) postModal.close(); });
+
+document.getElementById('close-sound')?.addEventListener('click', () => soundModal?.close());
+soundModal?.addEventListener('click', (e) => { if (e.target === soundModal) soundModal.close(); });
 
 document.getElementById('close-follow-modal')?.addEventListener('click', () => {
   document.getElementById('follow-modal')?.close();

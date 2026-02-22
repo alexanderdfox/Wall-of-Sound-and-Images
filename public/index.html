@@ -93,8 +93,9 @@
         </div>
         <div class="friends-section" id="friends-section">
           <label>Add friend</label>
-          <div class="add-friend-row">
-            <input type="text" id="add-friend-username" placeholder="@username">
+          <div class="add-friend-row add-friend-search-wrap">
+            <input type="text" id="add-friend-username" placeholder="Search by username…" autocomplete="off">
+            <div id="friend-search-results" class="friend-search-results" style="display:none"></div>
             <button type="button" class="btn btn-primary" id="btn-add-friend">Add</button>
           </div>
           <div class="friends-list" id="friends-list"></div>
