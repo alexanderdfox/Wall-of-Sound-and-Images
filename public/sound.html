@@ -150,9 +150,39 @@
 
     <div class="sound-meta" id="sound-meta">
       <div class="location" id="location-display">—</div>
-      <p style="margin-top:12px;font-size:0.85rem">1 second at 8kHz, 16-bit mono. Same location always yields the same sound.</p>
+      <div id="sound-db-status" style="margin-top:8px"></div>
+      <p style="margin-top:12px;font-size:0.85rem">Generated: 1s at 8kHz. Uploaded clips replace the generated sound at that location.</p>
+    </div>
+
+    <div style="margin-top:24px">
+      <button type="button" class="btn btn-primary" id="btn-upload-sound">Upload sound (max 30 sec)</button>
     </div>
   </main>
+
+  <dialog class="modal" id="upload-sound-modal">
+    <div class="modal-content">
+      <h2>Upload Sound</h2>
+      <p class="modal-hint">Upload up to 30 seconds. WAV, MP3, OGG supported. Content-hashed to a location.</p>
+      <form id="upload-sound-form">
+        <div class="upload-dropzone" id="sound-dropzone">
+          <input type="file" id="sound-file-input" accept="audio/*,.mp3,.wav,.ogg,.webm,.m4a" hidden>
+          <span class="dropzone-text" id="sound-dropzone-text">Drop audio here or click to browse</span>
+        </div>
+        <input type="text" id="sound-caption-input" placeholder="Caption (optional)">
+        <div class="visibility-wrap">
+          <label for="sound-visibility-select">Visibility</label>
+          <select id="sound-visibility-select">
+            <option value="public">Public</option>
+            <option value="friends">Friends only</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-upload-sound">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="submit-upload-sound" disabled>Upload</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
 
   <script src="/hash-util.js"></script>
   <script>
@@ -180,7 +210,9 @@
       }
     }
 
-    function showSound(loc) {
+    const API = '/api';
+
+    async function showSound(loc) {
       if (!loc || loc.length !== 64) return;
       revokeCurrentUrl();
       currentLocation = loc;
@@ -188,14 +220,28 @@
       locationDisplay.textContent = loc;
       updateUrl(loc);
 
-      if (typeof generateSoundFromBabelHash === 'function') {
+      const existsRes = await fetch(`${API}/exists-sound/${loc}`);
+      const existsData = existsRes.ok ? await existsRes.json() : null;
+      const inDb = existsData?.exists;
+
+      const dbStatus = document.getElementById('sound-db-status');
+      dbStatus.innerHTML = inDb
+        ? `✓ In database · #${existsData.sound?.num ?? '?'}${existsData.sound?.caption ? ' · ' + existsData.sound.caption : ''}`
+        : 'Not in database — undiscovered location';
+
+      let src;
+      if (inDb) {
+        src = `/s/${loc}`;
+      } else if (typeof generateSoundFromBabelHash === 'function') {
         currentUrl = generateSoundFromBabelHash(loc, 1, 8000);
-        if (currentUrl) {
-          audio.src = currentUrl;
-          audio.style.display = 'block';
-          placeholder.style.display = 'none';
-          audio.play().catch(() => {});
-        }
+        src = currentUrl;
+      }
+
+      if (src) {
+        audio.src = src;
+        audio.style.display = 'block';
+        placeholder.style.display = 'none';
+        audio.play().catch(() => {});
       } else {
         placeholder.textContent = 'hash-util.js required';
       }
@@ -245,6 +291,91 @@
 
     const initialLoc = parseLocationFromUrl() || randomBabelHash();
     showSound(initialLoc);
+
+    document.getElementById('btn-upload-sound').addEventListener('click', () => {
+      if (!localStorage.getItem('tchoff_token')) {
+        alert('Sign in to upload sounds');
+        window.location.href = '/#upload';
+        return;
+      }
+      document.getElementById('upload-sound-modal').showModal();
+    });
+
+    document.getElementById('cancel-upload-sound').addEventListener('click', () => {
+      document.getElementById('upload-sound-modal').close();
+    });
+
+    const soundDropzone = document.getElementById('sound-dropzone');
+    const soundFileInput = document.getElementById('sound-file-input');
+    const soundDropzoneText = document.getElementById('sound-dropzone-text');
+    let selectedSoundFile = null;
+
+    soundDropzone.addEventListener('click', () => soundFileInput.click());
+    soundDropzone.addEventListener('dragover', (e) => { e.preventDefault(); soundDropzone.classList.add('dragover'); });
+    soundDropzone.addEventListener('dragleave', () => soundDropzone.classList.remove('dragover'));
+    soundDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      soundDropzone.classList.remove('dragover');
+      const f = e.dataTransfer.files[0];
+      if (f && (f.type.startsWith('audio/') || /\.(mp3|wav|ogg|webm|m4a)$/i.test(f.name))) setSoundFile(f);
+    });
+    soundFileInput.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (f) setSoundFile(f);
+    });
+
+    function setSoundFile(file) {
+      selectedSoundFile = file;
+      const dur = file.duration;
+      soundDropzoneText.textContent = `${file.name}${dur ? ' (' + Math.round(dur) + 's)' : ''}`;
+      document.getElementById('submit-upload-sound').disabled = false;
+    }
+
+    document.getElementById('upload-sound-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!selectedSoundFile) return;
+      const btn = document.getElementById('submit-upload-sound');
+      btn.disabled = true;
+      btn.textContent = 'Uploading…';
+      try {
+        const objectUrl = URL.createObjectURL(selectedSoundFile);
+        const duration = await new Promise((res) => {
+          const a = new Audio();
+          a.onloadedmetadata = () => res(a.duration);
+          a.onerror = () => res(0);
+          a.src = objectUrl;
+        });
+        URL.revokeObjectURL(objectUrl);
+        if (duration > 30) {
+          alert('Audio must be 30 seconds or less');
+          btn.disabled = false;
+          btn.textContent = 'Upload';
+          return;
+        }
+        const form = new FormData();
+        form.append('audio', selectedSoundFile);
+        form.append('caption', document.getElementById('sound-caption-input').value || '');
+        form.append('visibility', document.getElementById('sound-visibility-select').value || 'public');
+        form.append('duration', Math.round(duration));
+        const res = await fetch(`${API}/upload-sound`, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('tchoff_token') },
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        document.getElementById('upload-sound-modal').close();
+        selectedSoundFile = null;
+        soundFileInput.value = '';
+        soundDropzoneText.textContent = 'Drop audio here or click to browse';
+        document.getElementById('sound-caption-input').value = '';
+        if (data.hash) showSound(data.hash);
+      } catch (err) {
+        alert(err.message);
+      }
+      btn.disabled = false;
+      btn.textContent = 'Upload';
+    });
   </script>
 </body>
 </html>

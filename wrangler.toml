@@ -12,3 +12,8 @@ database_id = "b262192d-8bc7-4c65-8890-0f60584acede"
 [[kv_namespaces]]
 binding = "BABEL_IMAGES"
 id = "3255ba55a70d4d7f9f024b9ff293682c"
+
+# Audio clips (up to 30 sec) for Wall of Sound
+[[kv_namespaces]]
+binding = "BABEL_SOUNDS"
+id = "2f06c23747d142b398e8da904a941aa7"

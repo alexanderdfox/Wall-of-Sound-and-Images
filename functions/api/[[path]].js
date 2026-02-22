@@ -273,6 +273,92 @@ export async function onRequest(context) {
       }
     }
 
+    // POST /api/upload-sound
+    if (path === 'upload-sound' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required to upload' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required to upload' }, 401);
+      const user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(payload.sub).first();
+      if (!user) return json({ error: 'Sign in required to upload' }, 401);
+
+      const contentType = request.headers.get('content-type') || '';
+      if (!contentType.includes('multipart/form-data')) return json({ error: 'Multipart form required' }, 400);
+      const form = await request.formData();
+      const audioFile = form.get('audio');
+      const caption = (form.get('caption') || '').toString().trim().slice(0, 500);
+      const visibility = (form.get('visibility') || 'public').toString() === 'friends' ? 'friends' : 'public';
+
+      if (!audioFile || typeof audioFile.arrayBuffer !== 'function') return json({ error: 'Audio file required' }, 400);
+      const arrayBuffer = await audioFile.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      if (bytes.length > 4 * 1024 * 1024) return json({ error: 'Audio file too large (max 4MB)' }, 400);
+
+      const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+      const existing = await db.prepare('SELECT num, hash FROM sounds WHERE hash = ?').bind(hash).first().catch(() => null);
+      if (existing && env.BABEL_SOUNDS) {
+        const kvAudio = await env.BABEL_SOUNDS.get(`sound:${hash}`, { type: 'arrayBuffer' });
+        if (kvAudio) {
+          return json({
+            success: true,
+            hash,
+            num: existing.num,
+            found: true,
+            url: `/s/${hash}`,
+            urlNum: `/s/n/${existing.num}`,
+          });
+        }
+      }
+
+      const duration = Math.min(30, Math.max(0, parseInt(form.get('duration') || '0', 10)));
+
+      const id = crypto.randomUUID();
+      const maxRow = await db.prepare('SELECT COALESCE(MAX(num), 0) as m FROM sounds').first().catch(() => ({ m: 0 }));
+      const num = (maxRow?.m ?? 0) + 1;
+      const createdAt = new Date().toISOString();
+
+      try {
+        await db.prepare(
+          'INSERT INTO sounds (id, num, hash, user_id, caption, duration, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(id, num, hash, user.id, caption || '', duration || 0, createdAt, visibility).run();
+      } catch (e) {
+        if (/no such table: sounds/i.test(e?.message)) return json({ error: 'Sounds not configured' }, 500);
+        throw e;
+      }
+
+      if (env.BABEL_SOUNDS) {
+        try {
+          await env.BABEL_SOUNDS.put(`sound:${hash}`, bytes, { metadata: { contentType: audioFile.type || 'audio/wav' } });
+        } catch (e) { console.error('KV put failed:', e); }
+      }
+
+      return json({
+        success: true,
+        hash,
+        num,
+        url: `/s/${hash}`,
+        urlNum: `/s/n/${num}`,
+      });
+    }
+
+    // GET /api/exists-sound/:hash
+    if (path.startsWith('exists-sound/') && method === 'GET') {
+      const hash = path.slice('exists-sound/'.length).replace(/[^a-f0-9]/gi, '');
+      if (!hash || hash.length !== 64) return json({ error: 'Invalid hash' }, 400);
+      const sound = await db.prepare(
+        'SELECT num, hash, user_id, caption, duration, created_at FROM sounds WHERE hash = ?'
+      ).bind(hash).first().catch(() => null);
+      return json({
+        hash: hash,
+        num: sound?.num ?? null,
+        exists: !!sound,
+        sound: sound ? { num: sound.num, hash: sound.hash, caption: sound.caption, duration: sound.duration } : null,
+      });
+    }
+
     // GET /api/catalog
     if (path === 'catalog' && method === 'GET') {
       const rows = await db.prepare(
