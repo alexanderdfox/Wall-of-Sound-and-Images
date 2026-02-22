@@ -441,16 +441,21 @@
 
     document.getElementById('btn-record-start').addEventListener('click', async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+        } catch (_) {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a'].find((m) => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
         mediaRecorder = new MediaRecorder(stream);
         recordedChunks = [];
-        mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+        mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
           if (recordedChunks.length) {
             const blob = new Blob(recordedChunks, { type: mime });
-            const ext = mime.includes('webm') ? 'webm' : 'ogg';
+            const ext = mime.includes('webm') ? 'webm' : mime.includes('mp4') ? 'm4a' : 'ogg';
             selectedSoundFile = new File([blob], `recording-${Date.now()}.${ext}`, { type: blob.type });
             document.getElementById('submit-upload-sound').disabled = false;
             document.getElementById('record-status').textContent = 'Recording ready. Click Upload to save.';
@@ -458,7 +463,7 @@
             document.getElementById('record-status').textContent = 'Recording too short. Try again.';
           }
         };
-        mediaRecorder.start();
+        mediaRecorder.start(250);
         document.getElementById('btn-record-start').disabled = true;
         document.getElementById('btn-record-start').textContent = 'Recording…';
         document.getElementById('btn-record-stop').style.display = '';
