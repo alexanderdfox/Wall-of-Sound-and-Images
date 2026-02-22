@@ -1,3 +1,4 @@
 # Copy to .dev.vars for local Pages dev (wrangler pages dev)
 # .dev.vars is gitignored - never commit real secrets
+# Production: JWT_SECRET is in wrangler.toml [vars]. Override with: wrangler pages secret put JWT_SECRET --project-name=tchoff
 JWT_SECRET=spinmerightround1234

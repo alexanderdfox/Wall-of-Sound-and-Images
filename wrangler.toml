@@ -2,6 +2,10 @@ name = "tchoff"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "public"
 
+# JWT signing for auth. Override in production: wrangler pages secret put JWT_SECRET --project-name=tchoff
+[vars]
+JWT_SECRET = "tchoff-jwt-secret-rotate-in-production-64chars-minimum-for-security"
+
 # Run: wrangler d1 create tchoff-db  (then paste database_id below)
 [[d1_databases]]
 binding = "DB"
