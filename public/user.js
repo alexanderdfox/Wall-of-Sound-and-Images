@@ -187,7 +187,7 @@ function attachUserPageListeners(userId, userData) {
         const data = res.ok ? await res.json() : { [type]: [] };
         const items = data[type] || [];
         listEl.innerHTML = items.length
-          ? items.map((u) => `<a href="/u/${u.userId}" class="follow-list-item">@${escapeHtml(u.username)}</a>`).join('')
+          ? items.map((u) => `<a href="/u/${encodeURIComponent(u.username || u.userId)}" class="follow-list-item">@${escapeHtml(u.username)}</a>`).join('')
           : '<p class="no-comments">No ' + type + ' yet</p>';
       } catch (_) {
         listEl.innerHTML = '<p class="error">Failed to load</p>';

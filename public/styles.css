@@ -540,6 +540,8 @@ body {
 .add-friend-row input { flex: 1; }
 .friends-list, .pending-requests { font-size: 0.9rem; }
 .friend-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
-.friend-item a { color: var(--accent); text-decoration: none; margin-left: 8px; }
+.friend-item a { color: var(--accent); text-decoration: none; }
+.friend-item a.friend-profile { margin-right: 8px; }
+.friend-item a.friend-remove { margin-left: 8px; }
 .friend-item a:hover { text-decoration: underline; }
 .friends-empty { color: var(--text-muted); font-size: 0.9rem; }

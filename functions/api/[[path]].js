@@ -133,10 +133,11 @@ export async function onRequest(context) {
 
     // GET /api/user/:id/images (must be before /api/user/:id)
     if (path.startsWith('user/') && path.endsWith('/images') && method === 'GET') {
-      const id = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
-      if (!id) return json({ error: 'User ID required' }, 400);
-      const user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(id).first();
+      const identifier = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
+      if (!identifier) return json({ error: 'User required' }, 400);
+      const user = await resolveUser(db, identifier);
       if (!user) return json({ error: 'User not found' }, 404);
+      const id = user.id;
       const token = getBearerToken(request);
       let viewerId = null;
       if (token && env.JWT_SECRET) {
@@ -187,12 +188,13 @@ export async function onRequest(context) {
       return json({ id: user.id, username: user.username });
     }
 
-    // GET /api/user/:id
+    // GET /api/user/:id (supports id or username)
     if (path.startsWith('user/') && !path.includes('/images') && !path.includes('by-email') && !path.includes('by-username') && !path.includes('/followers') && !path.includes('/following') && method === 'GET') {
-      const id = path.slice('user/'.length).replace(/[^a-zA-Z0-9-_]/g, '');
-      if (!id) return json({ error: 'User ID required' }, 400);
-      const user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(id).first();
+      const identifier = path.slice('user/'.length).replace(/[^a-zA-Z0-9-_]/g, '');
+      if (!identifier) return json({ error: 'User required' }, 400);
+      const user = await resolveUser(db, identifier);
       if (!user) return json({ error: 'User not found' }, 404);
+      const id = user.id;
       const countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
       let followerCount = 0, followingCount = 0, following = false;
       try {
@@ -213,16 +215,17 @@ export async function onRequest(context) {
       return json({ id: user.id, username: disp, imageCount: countRow?.c ?? 0, followerCount, followingCount, following });
     }
 
-    // POST /api/follow/:userId - follow user
-    if (path.match(/^follow\/[a-zA-Z0-9-]+$/) && method === 'POST') {
-      const targetId = path.split('/')[1];
+    // POST /api/follow/:userId - follow user (supports id or username)
+    if (path.match(/^follow\/[a-zA-Z0-9_-]+$/) && method === 'POST') {
+      const identifier = path.split('/')[1];
       const token = getBearerToken(request);
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
       if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
-      if (payload.sub === targetId) return json({ error: 'Cannot follow yourself' }, 400);
-      const target = await db.prepare('SELECT id FROM users WHERE id = ?').bind(targetId).first();
+      const target = await resolveUser(db, identifier);
       if (!target) return json({ error: 'User not found' }, 404);
+      const targetId = target.id;
+      if (payload.sub === targetId) return json({ error: 'Cannot follow yourself' }, 400);
       try {
         await db.prepare('INSERT OR IGNORE INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)')
           .bind(payload.sub, targetId, new Date().toISOString()).run();
@@ -234,8 +237,10 @@ export async function onRequest(context) {
     }
 
     // DELETE /api/follow/:userId - unfollow
-    if (path.match(/^follow\/[a-zA-Z0-9-]+$/) && method === 'DELETE') {
-      const targetId = path.split('/')[1];
+    if (path.match(/^follow\/[a-zA-Z0-9_-]+$/) && method === 'DELETE') {
+      const identifier = path.split('/')[1];
+      const target = await resolveUser(db, identifier);
+      const targetId = target ? target.id : identifier;
       const token = getBearerToken(request);
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
@@ -247,12 +252,13 @@ export async function onRequest(context) {
     }
 
     // GET /api/user/:id/followers, GET /api/user/:id/following
-    if (path.match(/^user\/[a-zA-Z0-9-]+\/(followers|following)$/) && method === 'GET') {
+    if (path.match(/^user\/[a-zA-Z0-9_-]+\/(followers|following)$/) && method === 'GET') {
       const parts = path.split('/');
-      const id = parts[1];
+      const identifier = parts[1];
       const type = parts[2];
-      const user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(id).first();
+      const user = await resolveUser(db, identifier);
       if (!user) return json({ error: 'User not found' }, 404);
+      const id = user.id;
       try {
         const rows = type === 'followers'
           ? await db.prepare('SELECT f.follower_id as userId, u.username FROM follows f LEFT JOIN users u ON u.id = f.follower_id WHERE f.following_id = ? ORDER BY f.created_at DESC')
@@ -659,6 +665,15 @@ export async function onRequest(context) {
     console.error(err);
     return json({ error: err.message || 'Server error' }, 500);
   }
+}
+
+async function resolveUser(db, identifier) {
+  if (!identifier) return null;
+  let user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(identifier).first();
+  if (!user) {
+    user = await db.prepare('SELECT id, username FROM users WHERE username = ?').bind(identifier).first();
+  }
+  return user;
 }
 
 function parseExifForApi(exif) {

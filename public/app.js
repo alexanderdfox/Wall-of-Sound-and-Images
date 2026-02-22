@@ -23,7 +23,7 @@ let authToken = localStorage.getItem('tchoff_token');
 
 function userLink(post) {
   const un = post.username || '';
-  if (post.userId) return `<a href="/u/${post.userId}" class="post-user-link">@${escapeHtml(un)}</a>`;
+  if (post.userId) return `<a href="/u/${encodeURIComponent(post.userId)}" class="post-user-link">@${escapeHtml(un)}</a>`;
   return `<span class="post-user">@${escapeHtml(un)}</span>`;
 }
 
@@ -495,10 +495,10 @@ async function loadFriends() {
     const res = await fetch(`${API}/friends`, { headers: { Authorization: 'Bearer ' + authToken } });
     const data = res.ok ? await res.json() : { friends: [], pending: [] };
     listEl.innerHTML = (data.friends || []).map((f) =>
-      `<div class="friend-item">@${escapeHtml(f.username)} <a href="#" class="friend-remove" data-user-id="${f.userId}">Remove</a></div>`
+      `<div class="friend-item"><a href="/u/${encodeURIComponent(f.username || f.userId)}" class="friend-profile">@${escapeHtml(f.username)}</a> <a href="#" class="friend-remove" data-user-id="${f.userId}">Remove</a></div>`
     ).join('') || '<p class="friends-empty">No friends yet</p>';
     pendingEl.innerHTML = (data.pending || []).map((p) =>
-      `<div class="friend-item">@${escapeHtml(p.fromUsername)} requested · <a href="#" class="friend-accept" data-from-id="${p.fromUserId}">Accept</a> <a href="#" class="friend-decline" data-from-id="${p.fromUserId}">Decline</a></div>`
+      `<div class="friend-item"><a href="/u/${encodeURIComponent(p.fromUsername)}" class="friend-profile">@${escapeHtml(p.fromUsername)}</a> requested · <a href="#" class="friend-accept" data-from-id="${p.fromUserId}">Accept</a> <a href="#" class="friend-decline" data-from-id="${p.fromUserId}">Decline</a></div>`
     ).join('') || '';
     listEl.querySelectorAll('.friend-remove').forEach((a) => {
       a.addEventListener('click', async (e) => {

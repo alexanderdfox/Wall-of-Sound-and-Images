@@ -8,15 +8,6 @@ Store images once. Each size (100, 200, 400, 800, 1600) gets a unique hash that 
 - **Retrieve**: `/i/:hash` or `/i/:baseHash?size=400`. Client can hash image data and find matches.
 - **JS-compatible**: Same algorithm server (sharp) and client (canvas + crypto.subtle).
 
-## Run (Node.js)
-
-```bash
-npm install
-npm start
-```
-
-Open http://localhost:3000
-
 ## Deploy on Cloudflare
 
 Runs on **Cloudflare Pages** with **D1** (SQLite) and **R2** (object storage). All image hashing and Babelia computation happens in the browser.
@@ -57,12 +48,7 @@ npm run cf:deploy      # deploy to Cloudflare Pages
 
 ## Storage
 
-**Database text storage only.** No image files. Based on [babelia.libraryofbabel.info](https://babelia.libraryofbabel.info).
-
-```
-storage/
-  tchoff.db   # SQLite — num, babelia_location, caption, username, exif
-```
+**D1 database + KV (BABEL_IMAGES).** Images stored by content hash in KV. Based on [babelia.libraryofbabel.info](https://babelia.libraryofbabel.info).
 
 - **Babelia format**: 640×416 pixels, 4096 colors (12-bit RGB) — same space as the Babel Image Archives
 - Upload → compute location (SHA-256 of quantized pixels), assign num. Original discarded.

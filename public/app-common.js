@@ -12,7 +12,7 @@ async function openPost(post, postModal, lightboxBody) {
   const body = lightboxBody || document.getElementById('lightbox-body');
   const babelHash = post.babeliaLocation || post.hash;
   const imgSrc = post.num ? `/i/n/${post.num}` : (babelHash ? `/i/${babelHash}` : post.imageUrl || '');
-  const userEl = post.userId ? `<a href="/u/${post.userId}" class="post-user post-user-link">@${escapeHtml(post.username || '')}</a>` : `<div class="post-user">@${escapeHtml(post.username || '')}</div>`;
+  const userEl = post.userId ? `<a href="/u/${encodeURIComponent(post.userId)}" class="post-user post-user-link">@${escapeHtml(post.username || '')}</a>` : `<div class="post-user">@${escapeHtml(post.username || '')}</div>`;
   const likeCount = post.likeCount ?? 0;
   const commentCount = post.commentCount ?? 0;
   const likedByMe = post.likedByMe ?? false;

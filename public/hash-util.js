@@ -195,6 +195,68 @@ function decrementBabelHash(hash) {
 }
 
 /**
+ * Generate deterministic audio from Babel hash (64 hex chars).
+ * Wall of Sound: every possible 1-second sample at 8kHz 8-bit mono.
+ * Same hash always yields same sound. Returns WAV blob URL.
+ */
+function generateSoundFromBabelHash(babelHash, durationSec = 1, sampleRate = 8000) {
+  const h = String(babelHash || '').toLowerCase().replace(/[^a-f0-9]/g, '');
+  if (h.length !== 64) return null;
+  const seed = new Uint32Array(4);
+  for (let i = 0; i < 4; i++) seed[i] = parseInt(h.slice(i * 16, (i + 1) * 16), 16) >>> 0;
+  const sfc32 = (a, b, c, d) => () => {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+  const rng = sfc32(seed[0], seed[1], seed[2], seed[3]);
+  const numSamples = Math.floor(sampleRate * durationSec);
+  const samples = new Int16Array(numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const u = rng();
+    samples[i] = Math.floor((u * 65536) - 32768);
+  }
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const dataSize = numSamples * numChannels * (bitsPerSample / 8);
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  let offset = 0;
+  const write = (val, fmt) => {
+    if (fmt === 'str') {
+      for (let i = 0; i < val.length; i++) view.setUint8(offset++, val.charCodeAt(i));
+    } else if (fmt === 32) view.setUint32(offset, val, true), offset += 4;
+    else if (fmt === 16) view.setUint16(offset, val, true), offset += 2;
+  };
+  write('RIFF', 'str');
+  write(36 + dataSize, 32);
+  write('WAVE', 'str');
+  write('fmt ', 'str');
+  write(16, 32);
+  write(1, 16);
+  write(numChannels, 16);
+  write(sampleRate, 32);
+  write(byteRate, 32);
+  write(numChannels * (bitsPerSample / 8), 16);
+  write(bitsPerSample, 16);
+  write('data', 'str');
+  write(dataSize, 32);
+  const sampleOffset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    view.setInt16(sampleOffset + i * 2, samples[i], true);
+  }
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  return URL.createObjectURL(blob);
+}
+
+/**
  * Random 64-char hex hash
  */
 function randomBabelHash() {
@@ -221,6 +283,7 @@ window.hashRawRgb = hashRawRgb;
 window.computeBabelia = computeBabelia;
 window.findImageByHash = findImageByHash;
 window.generateImageFromBabelHash = generateImageFromBabelHash;
+window.generateSoundFromBabelHash = generateSoundFromBabelHash;
 window.incrementBabelHash = incrementBabelHash;
 window.decrementBabelHash = decrementBabelHash;
 window.randomBabelHash = randomBabelHash;
