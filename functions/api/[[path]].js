@@ -2,6 +2,29 @@
 
 import { hashPassword, verifyPassword, signJwt, verifyJwt, getBearerToken } from '../_auth.js';
 
+const KV_MAX_PAIRS = 10;
+
+async function kvPutWithRollover(kv, fullKey, value, metadata = {}) {
+  if (!kv) return;
+  const prefix = fullKey.includes(':') ? fullKey.split(':')[0] + ':' : '';
+  const meta = { ...metadata, createdAt: Date.now() };
+  let keys = [];
+  let cursor;
+  do {
+    const list = await kv.list({ prefix, limit: 50, cursor });
+    keys = keys.concat(list.keys || []);
+    cursor = list.list_complete ? null : list.cursor;
+  } while (cursor);
+  const exists = keys.some((k) => k.name === fullKey);
+  if (!exists && keys.length >= KV_MAX_PAIRS) {
+    const withTime = keys.map((k) => ({ ...k, ts: (k.metadata?.createdAt ?? 0) }));
+    withTime.sort((a, b) => a.ts - b.ts);
+    const oldest = withTime[0];
+    if (oldest) await kv.delete(oldest.name);
+  }
+  await kv.put(fullKey, value, { metadata: meta });
+}
+
 export async function onRequest(context) {
   const { env, request } = context;
   const url = new URL(request.url);
@@ -366,7 +389,7 @@ export async function onRequest(context) {
 
       if (env.BABEL_SOUNDS) {
         try {
-          await env.BABEL_SOUNDS.put(`sound:${hash}`, bytes, { metadata: { contentType: audioFile.type || 'audio/wav' } });
+          await kvPutWithRollover(env.BABEL_SOUNDS, `sound:${hash}`, bytes, { contentType: audioFile.type || 'audio/wav' });
         } catch (e) { console.error('KV put failed:', e); }
       }
 
@@ -593,7 +616,7 @@ export async function onRequest(context) {
       if (env.BABEL_IMAGES && babeliaPng && babeliaPng.length > 100) {
         try {
           const binary = Uint8Array.from(atob(babeliaPng), (c) => c.charCodeAt(0));
-          await env.BABEL_IMAGES.put(`babel:${babelHash}`, binary, { metadata: { contentType: 'image/png' } });
+          await kvPutWithRollover(env.BABEL_IMAGES, `babel:${babelHash}`, binary, { contentType: 'image/png' });
         } catch (e) {
           console.error('KV put failed:', e);
         }
