@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tchoff — Hash-based Gallery</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <a href="/babel.html" class="btn-icon" title="Babel Library" style="text-decoration:none">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+          <path d="M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"/>
+        </svg>
+      </a>
+      <a href="/hashes.html" class="btn-icon" title="Hash database" style="text-decoration:none">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+      </a>
+      <button class="btn-icon" id="btn-upload" title="Upload">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-view-hash" title="View by hash">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="main">
+    <section class="feed" id="feed">
+      <div class="feed-grid grid-4x4" id="feed-grid"></div>
+      <div class="empty-state" id="empty-state">
+        <div class="empty-state-icon" aria-hidden="true">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </div>
+        <p>No images yet. Drop an image or click Upload — HEIC from iPhone/iPad supported.</p>
+      </div>
+      <nav class="pagination" id="pagination"></nav>
+    </section>
+  </main>
+
+  <!-- Auth modal -->
+  <dialog class="modal" id="auth-modal">
+    <div class="modal-content">
+      <h2 id="auth-title">Sign in</h2>
+      <p class="modal-hint" id="auth-hint">Create an account with your email to upload images.</p>
+      <div id="auth-logged-in" style="display:none">
+        <p class="modal-hint">Signed in as <strong id="auth-username-display"></strong></p>
+        <div id="auth-username-edit" style="display:none; margin-bottom:16px">
+          <input type="text" id="auth-username-input" placeholder="Username (3–30 chars)" maxlength="30" pattern="[a-zA-Z0-9_]{3,30}" title="Letters, numbers, underscores only">
+          <div class="modal-actions" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost" id="auth-username-cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" id="auth-username-save">Save</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btn-edit-username">Change username</button>
+          <button type="button" class="btn btn-ghost" id="btn-logout">Log out</button>
+        </div>
+        <div class="friends-section" id="friends-section">
+          <label>Add friend</label>
+          <div class="add-friend-row">
+            <input type="text" id="add-friend-username" placeholder="@username">
+            <button type="button" class="btn btn-primary" id="btn-add-friend">Add</button>
+          </div>
+          <div class="friends-list" id="friends-list"></div>
+          <div class="pending-requests" id="pending-requests"></div>
+        </div>
+      </div>
+      <div id="auth-forms">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-tab="login">Log in</button>
+        <button type="button" class="auth-tab" data-tab="signup">Sign up</button>
+      </div>
+      <form id="auth-login-form" class="auth-form active">
+        <input type="email" id="auth-email" placeholder="Email" required>
+        <input type="password" id="auth-password" placeholder="Password" minlength="6" required>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-auth">Cancel</button>
+          <button type="submit" class="btn btn-primary">Log in</button>
+        </div>
+      </form>
+      <form id="auth-signup-form" class="auth-form">
+        <input type="email" id="signup-email" placeholder="Email" required>
+        <input type="text" id="signup-username" placeholder="Username (3–30 chars, letters, numbers, _)" minlength="3" maxlength="30" pattern="[a-zA-Z0-9_]+" title="Letters, numbers, underscores only">
+        <input type="password" id="signup-password" placeholder="Password (min 6 chars)" minlength="6" required>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-auth-signup">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create account</button>
+        </div>
+      </form>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Upload modal -->
+  <dialog class="modal" id="upload-modal">
+    <div class="modal-content">
+      <h2>Upload Image</h2>
+      <p class="modal-hint">Take a photo or choose from library. HEIC from iPhone/iPad supported.</p>
+      <form id="upload-form">
+        <div class="upload-source-tabs">
+          <button type="button" class="upload-tab active" data-source="browse">Browse</button>
+          <button type="button" class="upload-tab" data-source="camera">Take Photo</button>
+        </div>
+        <div class="upload-dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="image/*,image/heic,image/heif,.heic,.heif" hidden>
+          <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+          <div id="camera-container" class="camera-container" style="display:none">
+            <video id="camera-preview" autoplay playsinline muted></video>
+            <canvas id="camera-canvas" hidden></canvas>
+            <button type="button" class="btn btn-primary" id="capture-btn">Capture</button>
+          </div>
+          <span class="dropzone-text" id="dropzone-text">Drop image here or click to browse</span>
+        </div>
+        <input type="text" id="caption-input" placeholder="Caption (optional)">
+        <div class="visibility-wrap">
+          <label for="visibility-select">Visibility</label>
+          <select id="visibility-select">
+            <option value="public">Public (everyone)</option>
+            <option value="friends">Friends only</option>
+          </select>
+        </div>
+        <div id="username-wrap">
+          <input type="text" id="username-input" placeholder="Username (optional)" value="anonymous">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-upload">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="submit-upload" disabled>Upload</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- View by hash modal -->
+  <dialog class="modal" id="hash-modal">
+    <div class="modal-content">
+      <h2>Babelia Lookup</h2>
+      <p class="modal-hint">Enter # (number) or 64-char Babelia location. Drop image (HEIC supported) to compute.</p>
+      <div class="hash-dropzone" id="hash-dropzone">Drop image to compute Babelia location</div>
+      <form id="hash-form">
+        <input type="text" id="hash-input" placeholder="# (number) or 64-char location" maxlength="64">
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-hash">Cancel</button>
+          <button type="submit" class="btn btn-primary">Retrieve</button>
+        </div>
+      </form>
+      <div class="hash-result" id="hash-result"></div>
+    </div>
+  </dialog>
+
+  <!-- Post detail (lightbox) -->
+  <dialog class="modal modal-lightbox" id="post-modal">
+    <div class="modal-content modal-content-full">
+      <button class="btn-close" id="close-post">×</button>
+      <div class="lightbox-body" id="lightbox-body"></div>
+    </div>
+  </dialog>
+
+  <script src="https://unpkg.com/exifr@7/dist/full.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <script src="hash-util.js"></script>
+  <script src="app-common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

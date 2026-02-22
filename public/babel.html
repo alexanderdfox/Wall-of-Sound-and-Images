@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Babel Library — Tchoff</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .babel-page { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .babel-page h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .babel-page .subtitle { color: var(--text-muted); margin-bottom: 24px; }
+    .babel-canvas-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+    }
+    .babel-canvas-wrap img {
+      max-width: 100%;
+      max-height: 60vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .babel-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .babel-controls input {
+      flex: 1;
+      min-width: 200px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+    }
+    .babel-controls input::placeholder { color: var(--text-muted); }
+    .babel-controls button {
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .babel-controls button:hover {
+      background: var(--border);
+      border-color: var(--text-muted);
+    }
+    .babel-controls button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg);
+    }
+    .babel-controls button.primary:hover { background: var(--accent-hover); }
+    .babel-meta {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 16px;
+      padding: 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .babel-meta.found { border-color: var(--accent); color: var(--accent); }
+    .babel-meta .location { font-family: var(--font-mono); word-break: break-all; font-size: 0.8rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <a href="/babel.html" class="btn-icon" title="Babel Library" style="text-decoration:none;background:var(--bg-card);border-color:var(--accent)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+          <path d="M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"/>
+        </svg>
+      </a>
+      <a href="/hashes.html" class="btn-icon" title="Hash database">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+      </a>
+      <a href="/" class="btn-icon" title="Feed" style="text-decoration:none">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+      </a>
+      <a href="/#upload" class="btn-icon" title="Upload" style="text-decoration:none">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </a>
+      <a href="/#hash" class="btn-icon" title="View by hash" style="text-decoration:none">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </a>
+    </nav>
+  </header>
+
+  <main class="babel-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Babel Library</h1>
+    <p class="subtitle">Every possible image at a 64-character address. Navigate the infinite archive.</p>
+
+    <div class="babel-canvas-wrap" id="canvas-wrap">
+      <img id="babel-image" alt="" style="display:none">
+      <p id="babel-placeholder" class="loading">Enter a location (64 hex chars) or press Random</p>
+    </div>
+
+    <div class="babel-controls">
+      <input type="text" id="location-input" placeholder="64-char hex location (e.g. 0 repeated 64 times)" maxlength="64" spellcheck="false">
+      <button type="button" id="btn-seek" class="primary">Seek</button>
+      <button type="button" id="btn-random">Random</button>
+      <button type="button" id="btn-prev">← Prev</button>
+      <button type="button" id="btn-next">Next →</button>
+      <button type="button" id="btn-copy" title="Copy location">Copy</button>
+    </div>
+
+    <div class="babel-meta" id="babel-meta">
+      <div class="location" id="location-display">—</div>
+      <div id="db-status"></div>
+    </div>
+  </main>
+
+  <script src="hash-util.js"></script>
+  <script>
+    const API = '/api';
+    let currentLocation = null;
+
+    const img = document.getElementById('babel-image');
+    const placeholder = document.getElementById('babel-placeholder');
+    const locationInput = document.getElementById('location-input');
+    const locationDisplay = document.getElementById('location-display');
+    const dbStatus = document.getElementById('db-status');
+
+    function parseLocationFromUrl() {
+      const hash = window.location.hash.slice(1).toLowerCase().replace(/[^a-f0-9]/g, '');
+      return hash.length === 64 ? hash : null;
+    }
+
+    function updateUrl(loc) {
+      if (loc) history.replaceState(null, '', '#' + loc);
+    }
+
+    async function showImage(loc) {
+      if (!loc || loc.length !== 64) return;
+      currentLocation = loc;
+      locationInput.value = loc;
+      locationDisplay.textContent = loc;
+      updateUrl(loc);
+
+      const existsRes = await fetch(`${API}/exists/${loc}`);
+      const existsData = existsRes.ok ? await existsRes.json() : null;
+      const inDb = existsData?.exists;
+
+      const src = inDb ? `/i/${loc}` : (typeof generateImageFromBabelHash === 'function' ? generateImageFromBabelHash(loc, 640) : '');
+      if (src) {
+        img.src = src;
+        img.style.display = 'block';
+        placeholder.style.display = 'none';
+      }
+
+      const metaEl = document.getElementById('babel-meta');
+      metaEl.classList.toggle('found', !!inDb);
+      dbStatus.innerHTML = inDb
+        ? `✓ In database · #${existsData.post?.num ?? '?'} · @${existsData.post?.username ?? '?'}${existsData.post?.caption ? ' · ' + existsData.post.caption : ''}`
+        : 'Not in database — undiscovered location';
+    }
+
+    function seek() {
+      const val = locationInput.value.trim().toLowerCase().replace(/[^a-f0-9]/g, '').padStart(64, '0').slice(-64);
+      if (val.length === 64) showImage(val);
+      else locationInput.placeholder = 'Enter 64 hex characters (0-9, a-f)';
+    }
+
+    document.getElementById('btn-seek').addEventListener('click', seek);
+    locationInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') seek(); });
+
+    document.getElementById('btn-random').addEventListener('click', () => {
+      showImage(randomBabelHash());
+    });
+
+    document.getElementById('btn-prev').addEventListener('click', () => {
+      const loc = currentLocation || locationInput.value.trim() || '0'.repeat(64);
+      const prev = decrementBabelHash(loc);
+      if (prev) showImage(prev);
+    });
+
+    document.getElementById('btn-next').addEventListener('click', () => {
+      const loc = currentLocation || locationInput.value.trim() || '0'.repeat(64);
+      const next = incrementBabelHash(loc);
+      if (next) showImage(next);
+    });
+
+    document.getElementById('btn-copy').addEventListener('click', () => {
+      const loc = currentLocation || locationInput.value.trim();
+      if (loc) {
+        navigator.clipboard.writeText(loc);
+        const btn = document.getElementById('btn-copy');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      }
+    });
+
+    window.addEventListener('hashchange', () => {
+      const loc = parseLocationFromUrl();
+      if (loc) showImage(loc);
+    });
+
+    const initialLoc = parseLocationFromUrl() || randomBabelHash();
+    showImage(initialLoc);
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+name = "tchoff"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "public"
+
+# Run: wrangler d1 create tchoff-db  (then paste database_id below)
+[[d1_databases]]
+binding = "DB"
+database_name = "tchoff-db"
+database_id = "b262192d-8bc7-4c65-8890-0f60584acede"
+
+# Babelia 1600×1600 PNG storage (matches images correctly)
+[[kv_namespaces]]
+binding = "BABEL_IMAGES"
+id = "3255ba55a70d4d7f9f024b9ff293682c"
