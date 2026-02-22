@@ -196,7 +196,7 @@ function decrementBabelHash(hash) {
 
 /**
  * Generate deterministic audio from Babel hash (64 hex chars).
- * Wall of Sound: every possible 30-second sample at 8kHz 16-bit stereo.
+ * Wall of Sound: every possible 30-second sample at 8kHz 16-bit mono.
  * Same hash always yields same sound. Returns WAV blob URL.
  */
 function generateSoundFromBabelHash(babelHash, durationSec = 1, sampleRate = 8000) {
@@ -216,7 +216,7 @@ function generateSoundFromBabelHash(babelHash, durationSec = 1, sampleRate = 800
     return (t >>> 0) / 4294967296;
   };
   const rng = sfc32(seed[0], seed[1], seed[2], seed[3]);
-  const numChannels = 2;
+  const numChannels = 1;
   const bitsPerSample = 16;
   const numFrames = Math.floor(sampleRate * durationSec);
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
@@ -245,10 +245,8 @@ function generateSoundFromBabelHash(babelHash, durationSec = 1, sampleRate = 800
   write(dataSize, 32);
   const sampleOffset = 44;
   for (let i = 0; i < numFrames; i++) {
-    const l = Math.floor((rng() * 65536) - 32768);
-    const r = Math.floor((rng() * 65536) - 32768);
-    view.setInt16(sampleOffset + i * 4, l, true);
-    view.setInt16(sampleOffset + i * 4 + 2, r, true);
+    const s = Math.floor((rng() * 65536) - 32768);
+    view.setInt16(sampleOffset + i * 2, s, true);
   }
   const blob = new Blob([buffer], { type: 'audio/wav' });
   return URL.createObjectURL(blob);

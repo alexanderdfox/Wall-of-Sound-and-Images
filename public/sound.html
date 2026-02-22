@@ -177,7 +177,7 @@
     <div class="sound-meta" id="sound-meta">
       <div class="location" id="location-display">—</div>
       <div class="db-status" id="sound-db-status"></div>
-      <p class="meta-note">30s stereo at 8kHz. Uploaded clips replace generated sounds at that location — same as Babel Library for images.</p>
+      <p class="meta-note">30s mono at 8kHz. Uploaded clips replace generated sounds at that location — same as Babel Library for images.</p>
     </div>
 
     <div class="sound-upload-section">
@@ -285,34 +285,22 @@
 
       if (inDb) metaEl.classList.add('in-db');
 
-      let src;
-      if (inDb) {
-        src = `/s/${loc}`;
-      } else if (typeof generateSoundFromBabelHash === 'function') {
-        currentUrl = generateSoundFromBabelHash(loc, 30, 8000);
-        src = currentUrl;
-      }
-
-      if (src) {
-        audio.onerror = () => {
-          placeholder.textContent = 'Failed to load audio';
-          placeholder.classList.remove('loading');
-          audio.style.display = 'none';
-          placeholder.style.display = 'block';
-        };
-        audio.oncanplaythrough = () => {
-          playerWrap.classList.remove('loading');
-          placeholder.classList.remove('loading');
-        };
-        audio.src = src;
-        audio.style.display = 'block';
-        placeholder.style.display = 'none';
-        audio.play().catch(() => {});
-      } else {
-        placeholder.textContent = 'hash-util.js required';
+      // All 64-char hashes are in the library: /s/:hash serves from KV (uploaded) or generates 30s mono 8kHz
+      const src = `/s/${loc}`;
+      audio.onerror = () => {
+        placeholder.textContent = 'Failed to load audio';
         placeholder.classList.remove('loading');
+        audio.style.display = 'none';
+        placeholder.style.display = 'block';
+      };
+      audio.oncanplaythrough = () => {
         playerWrap.classList.remove('loading');
-      }
+        placeholder.classList.remove('loading');
+      };
+      audio.src = src;
+      audio.style.display = 'block';
+      placeholder.style.display = 'none';
+      audio.play().catch(() => {});
     }
 
     function seek() {
@@ -453,7 +441,7 @@
 
     document.getElementById('btn-record-start').addEventListener('click', async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
         const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
         mediaRecorder = new MediaRecorder(stream);
         recordedChunks = [];
