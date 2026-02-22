@@ -22,13 +22,16 @@ async function loadUserPage() {
   const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
   const headers = authToken ? { Authorization: 'Bearer ' + authToken } : {};
   try {
-    const [userRes, imagesRes] = await Promise.all([
+    const [userRes, imagesRes, soundsRes] = await Promise.all([
       fetch(`${API}/user/${userId}`),
       fetch(`${API}/user/${userId}/images?page=1&per=${PER_PAGE}`, { headers }),
+      fetch(`${API}/user/${userId}/sounds`, { headers }),
     ]);
 
     const userData = userRes.ok ? await userRes.json() : null;
     const imagesData = imagesRes.ok ? await imagesRes.json() : { items: [], total: 0 };
+    const soundsData = soundsRes.ok ? await soundsRes.json() : { items: [] };
+    const sounds = soundsData.items || [];
 
     if (!userData) {
       userInfoEl.innerHTML = '<p class="error">User not found</p>';
@@ -49,11 +52,16 @@ async function loadUserPage() {
         ${followBtn}
       </div>
       <div class="user-stats">
-        <span>${imagesData.total || 0} posts</span>
+        <span>${imagesData.total || 0} images</span>
+        <span>${sounds.length} sounds</span>
         <button type="button" class="user-stat-link" data-type="followers">${userData.followerCount ?? 0} followers</button>
         <button type="button" class="user-stat-link" data-type="following">${userData.followingCount ?? 0} following</button>
       </div>
     `;
+
+    renderSoundsGrid(document.getElementById('sounds-grid'), sounds);
+    const soundsSection = document.getElementById('sounds-section');
+    if (soundsSection) soundsSection.style.display = sounds.length ? 'block' : 'none';
 
     renderGrid(grid, imagesData.items || []);
     emptyState.style.display = (imagesData.items?.length || 0) === 0 ? 'block' : 'none';
@@ -84,6 +92,27 @@ async function loadPage(page) {
   } catch (err) {
     console.error(err);
   }
+}
+
+function renderSoundsGrid(gridEl, sounds) {
+  if (!gridEl) return;
+  gridEl.innerHTML = '';
+  if (!sounds.length) return;
+
+  sounds.forEach((s) => {
+    const card = document.createElement('a');
+    card.className = 'sound-card';
+    card.href = `/sound.html#${s.hash}`;
+    const dur = s.duration ? `${s.duration}s` : '';
+    card.innerHTML = `
+      <div class="sound-card-wave" aria-hidden="true">🔊</div>
+      <div class="sound-card-info">
+        <span class="sound-card-caption">${escapeHtml(s.caption || 'Sound')}</span>
+        <span class="sound-card-meta">#${s.num || '?'} ${dur ? '· ' + dur : ''}</span>
+      </div>
+    `;
+    gridEl.appendChild(card);
+  });
 }
 
 function renderGrid(grid, posts) {

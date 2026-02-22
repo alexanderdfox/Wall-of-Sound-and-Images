@@ -132,6 +132,27 @@ export async function onRequest(context) {
       return json({ items: posts, total, page, per });
     }
 
+    // GET /api/user/:id/sounds
+    if (path.startsWith('user/') && path.endsWith('/sounds') && method === 'GET') {
+      const identifier = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
+      if (!identifier) return json({ error: 'User required' }, 400);
+      const user = await resolveUser(db, identifier);
+      if (!user) return json({ error: 'User not found' }, 404);
+      const id = user.id;
+      const token = getBearerToken(request);
+      let viewerId = null;
+      if (token && env.JWT_SECRET) {
+        const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+        if (payload?.sub) viewerId = payload.sub;
+      }
+      const canViewOwn = viewerId === id;
+      const where = buildUserSoundsWhere(id, viewerId, canViewOwn);
+      const sounds = await db.prepare(
+        `SELECT num, hash, caption, duration, created_at as createdAt FROM sounds ${where.sql} ORDER BY num DESC LIMIT 24`
+      ).bind(...where.params).all().catch(() => ({ results: [] }));
+      return json({ items: sounds.results || [], user: { id: user.id, username: user.username || 'user' } });
+    }
+
     // GET /api/user/:id/images (must be before /api/user/:id)
     if (path.startsWith('user/') && path.endsWith('/images') && method === 'GET') {
       const identifier = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
@@ -798,6 +819,26 @@ function buildUserImagesWhere(ownerId, viewerId, canViewOwn) {
     }
     return {
       sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))`,
+      params: [ownerId, viewerId, ownerId, ownerId, viewerId],
+    };
+  } catch (e) {
+    if (/no such table: friends|no column named visibility/i.test(e?.message)) {
+      return { sql: 'WHERE user_id = ?', params: [ownerId] };
+    }
+    throw e;
+  }
+}
+
+function buildUserSoundsWhere(ownerId, viewerId, canViewOwn) {
+  if (canViewOwn) {
+    return { sql: 'WHERE user_id = ?', params: [ownerId] };
+  }
+  try {
+    if (!viewerId) {
+      return { sql: "WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '')", params: [ownerId] };
+    }
+    return {
+      sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '' OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))`,
       params: [ownerId, viewerId, ownerId, ownerId, viewerId],
     };
   } catch (e) {

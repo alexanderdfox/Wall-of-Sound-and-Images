@@ -39,10 +39,17 @@
 
   <main class="main user-page">
     <div id="user-info" class="user-info"></div>
-    <div class="feed-grid grid-4x4" id="feed-grid"></div>
-    <div class="empty-state" id="empty-state" style="display:none">
-      <p>No images yet.</p>
-    </div>
+    <section id="sounds-section" class="user-sounds-section" style="display:none">
+      <h2 class="section-title">Sounds</h2>
+      <div class="sounds-grid" id="sounds-grid"></div>
+    </section>
+    <section class="user-images-section">
+      <h2 class="section-title">Images</h2>
+      <div class="feed-grid grid-4x4" id="feed-grid"></div>
+      <div class="empty-state" id="empty-state" style="display:none">
+        <p>No images yet.</p>
+      </div>
+    </section>
     <nav class="pagination" id="pagination"></nav>
   </main>
 
