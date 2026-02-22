@@ -51,6 +51,7 @@ function hashAudioContentType(buffer) {
   if (arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46) return 'audio/wav';
   if (arr[0] === 0xff && (arr[1] === 0xfb || arr[1] === 0xfa)) return 'audio/mpeg';
   if (arr[0] === 0x4f && arr[1] === 0x67 && arr[2] === 0x67) return 'audio/ogg';
+  if (arr[0] === 0x1a && arr[1] === 0x45 && arr[2] === 0xdf && arr[3] === 0xa3) return 'audio/webm';
   return 'audio/wav';
 }
 
