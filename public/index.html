@@ -115,6 +115,7 @@
         </div>
       </form>
       <form id="auth-signup-form" class="auth-form">
+        <div id="auth-signup-error" class="error" style="display:none; margin-bottom:12px"></div>
         <input type="email" id="signup-email" placeholder="Email" required>
         <input type="text" id="signup-username" placeholder="Username (3–30 chars, letters, numbers, _)" minlength="3" maxlength="30" pattern="[a-zA-Z0-9_]+" title="Letters, numbers, underscores only">
         <input type="password" id="signup-password" placeholder="Password (min 6 chars)" minlength="6" required>

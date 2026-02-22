@@ -554,6 +554,8 @@ document.getElementById('btn-add-friend')?.addEventListener('click', async () =>
 
 document.querySelectorAll('.auth-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
+    const errEl = document.getElementById('auth-signup-error');
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
     document.querySelectorAll('.auth-tab').forEach((t) => t.classList.remove('active'));
     document.querySelectorAll('.auth-form').forEach((f) => f.classList.remove('active'));
     tab.classList.add('active');
@@ -596,6 +598,8 @@ document.getElementById('auth-signup-form').addEventListener('submit', async (e)
     alert('Username must be 3–30 chars, letters, numbers, underscores only');
     return;
   }
+  const errEl = document.getElementById('auth-signup-error');
+  if (errEl) errEl.style.display = 'none';
   try {
     const res = await fetch(`${API}/auth/signup`, {
       method: 'POST',
@@ -603,15 +607,39 @@ document.getElementById('auth-signup-form').addEventListener('submit', async (e)
       body: JSON.stringify({ email, password, username }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Signup failed (${res.status})`);
-    if (!data.token) throw new Error('Account created but session could not be established. Please try logging in.');
+    if (!res.ok) {
+      const msg = data.error || `Signup failed (${res.status})`;
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+      if (msg.includes('already registered')) {
+        document.querySelectorAll('.auth-tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('.auth-form').forEach((f) => f.classList.remove('active'));
+        document.querySelector('.auth-tab[data-tab="login"]')?.classList.add('active');
+        document.getElementById('auth-login-form')?.classList.add('active');
+        document.getElementById('auth-email').value = email;
+        document.getElementById('auth-password').value = '';
+        if (errEl) errEl.textContent = 'That email is already registered. Switch to Log in to sign in.';
+      }
+      alert(msg);
+      return;
+    }
+    if (!data.token) {
+      const msg = 'Account created but sessions are not configured. Please log in.';
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+      document.querySelectorAll('.auth-tab').forEach((t) => t.classList.remove('active'));
+      document.querySelectorAll('.auth-form').forEach((f) => f.classList.remove('active'));
+      document.querySelector('.auth-tab[data-tab="login"]')?.classList.add('active');
+      document.getElementById('auth-login-form')?.classList.add('active');
+      document.getElementById('auth-email').value = email;
+      alert(msg);
+      return;
+    }
     authToken = data.token;
     currentUser = data.user;
     localStorage.setItem('tchoff_token', authToken);
     authModal.close();
     document.getElementById('btn-auth').title = '@' + (currentUser.username || '');
   } catch (err) {
-    alert(err.message);
+    alert(err.message || 'Something went wrong. Please try again.');
   }
 });
 

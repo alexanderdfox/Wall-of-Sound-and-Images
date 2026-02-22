@@ -22,7 +22,7 @@ export async function onRequest(context) {
       if (!email || !password || password.length < 6) {
         return json({ error: 'Email and password (min 6 chars) required' }, 400);
       }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!/^[^\s@]+@[^\s@]+(\.[^\s@]+)+$/.test(email)) {
         return json({ error: 'Invalid email format' }, 400);
       }
       if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
