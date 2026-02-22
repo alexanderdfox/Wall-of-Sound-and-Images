@@ -572,8 +572,8 @@ document.getElementById('auth-login-form').addEventListener('submit', async (e) 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Login failed (${res.status})`);
     if (!data.token) throw new Error('Session could not be established. Please try again.');
     authToken = data.token;
     currentUser = data.user;
@@ -588,7 +588,8 @@ document.getElementById('auth-login-form').addEventListener('submit', async (e) 
 document.getElementById('auth-signup-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('signup-email').value.trim().toLowerCase();
-  const username = document.getElementById('signup-username').value.trim().replace(/\s/g, '_') || (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
+  let username = document.getElementById('signup-username').value.trim().replace(/\s/g, '_') || (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
+  if (username.length < 3) username = ((username || 'u') + '00').slice(0, 3);
   const password = document.getElementById('signup-password').value;
   if (password.length < 6) { alert('Password must be at least 6 characters'); return; }
   if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
@@ -601,8 +602,8 @@ document.getElementById('auth-signup-form').addEventListener('submit', async (e)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, username }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Signup failed');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Signup failed (${res.status})`);
     if (!data.token) throw new Error('Account created but session could not be established. Please try logging in.');
     authToken = data.token;
     currentUser = data.user;

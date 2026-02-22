@@ -18,6 +18,7 @@ export async function onRequest(context) {
       const email = (body?.email || '').toString().trim().toLowerCase();
       const password = body?.password;
       let username = (body?.username || '').toString().trim().replace(/\s+/g, '_').slice(0, 30) || (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'user';
+      if (username.length < 3) username = (username + 'xx').slice(0, 3) || 'user';
       if (!email || !password || password.length < 6) {
         return json({ error: 'Email and password (min 6 chars) required' }, 400);
       }
