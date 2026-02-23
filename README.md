@@ -32,6 +32,14 @@ npm run cf:d1:init     # apply schema to D1
 npm run cf:deploy      # deploy to Cloudflare Pages
 ```
 
+### Git-based deploys (Cloudflare connected to GitHub)
+
+If you get "Workers-specific command in a Pages project", fix the build config:
+
+1. **Cloudflare Dashboard** → Pages → your project → **Settings** → **Builds & deployments** → **Build configuration**
+2. **Build command**: `bash build.sh` (or leave empty for static)
+3. **Build output directory**: `public`
+
 ## API
 
 | Endpoint | Description |

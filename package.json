@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Instagram-like site with hash-based image storage",
   "scripts": {
+    "build": "bash build.sh",
     "cf:dev": "wrangler pages dev public --compatibility-date=2024-01-01",
     "cf:deploy": "wrangler pages deploy public --project-name=tchoff",
     "cf:d1:create": "wrangler d1 create tchoff-db",
