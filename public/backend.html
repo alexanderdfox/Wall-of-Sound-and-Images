@@ -68,6 +68,7 @@
           <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
           <a href="/users.html" role="menuitem">Find Friends</a>
           <a href="/suggestions.html" role="menuitem">Suggestions</a>
+          <a href="/plans.html" role="menuitem">Plans</a>
           <a href="/hashes.html" role="menuitem">Image Hashes</a>
           <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
           <a href="/themes.html" role="menuitem">Themes</a>
@@ -116,6 +117,22 @@
         <div class="bulk-upload-results" id="bulk-results"></div>
       </section>
       <section class="backend-section">
+        <h2>Grant Subscription</h2>
+        <p class="report-meta" style="margin-bottom:12px">Grant the Unlimited Copyrighted Art plan to a user. Use user ID or username (e.g. @johndoe). Months: 0 = lifetime.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+          <div>
+            <label for="sub-user-id" style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">User ID or username</label>
+            <input type="text" id="sub-user-id" placeholder="@username or UUID" style="padding:8px 12px;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+          </div>
+          <div>
+            <label for="sub-months" style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">Months (0=lifetime)</label>
+            <input type="number" id="sub-months" value="12" min="0" max="120" style="padding:8px 12px;width:80px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+          </div>
+          <button type="button" class="btn btn-primary" id="sub-grant-btn">Grant</button>
+        </div>
+        <div id="sub-result" style="margin-top:12px;font-size:0.9rem"></div>
+      </section>
+      <section class="backend-section">
         <h2>Contact Messages</h2>
         <div id="contact-list"></div>
         <div class="pagination-backend" id="contact-pagination"></div>
@@ -152,6 +169,27 @@
       document.getElementById('backend-content').style.display = 'block';
       loadContact(1);
       loadReports(1);
+      document.getElementById('sub-grant-btn')?.addEventListener('click', async () => {
+        const userId = document.getElementById('sub-user-id')?.value?.trim();
+        const months = parseInt(document.getElementById('sub-months')?.value || '12', 10);
+        const resultEl = document.getElementById('sub-result');
+        if (!userId) { resultEl.textContent = 'User ID required'; resultEl.style.color = 'var(--danger)'; return; }
+        try {
+          const res = await fetch(API + '/admin/subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+            body: JSON.stringify({ userId: userId.replace(/^@/, ''), plan: 'unlimited_copyrighted_art', months }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed');
+          resultEl.textContent = 'Subscription granted' + (data.subscription?.expiresAt ? ' until ' + new Date(data.subscription.expiresAt).toLocaleDateString() : ' (lifetime)');
+          resultEl.style.color = 'var(--accent)';
+          document.getElementById('sub-user-id').value = '';
+        } catch (err) {
+          resultEl.textContent = err.message;
+          resultEl.style.color = 'var(--danger)';
+        }
+      });
     }
 
     let contactPage = 1;

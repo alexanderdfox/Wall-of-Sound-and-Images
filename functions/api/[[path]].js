@@ -247,6 +247,27 @@ export async function onRequest(context) {
       }
     }
 
+    // GET /api/subscription/me - current user's subscription status (auth optional)
+    if (path === 'subscription/me' && method === 'GET') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ active: false, plan: null, expiresAt: null });
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ active: false, plan: null, expiresAt: null });
+      try {
+        const sub = await db.prepare(
+          `SELECT plan, expires_at as expiresAt FROM user_subscriptions
+           WHERE user_id = ? AND datetime(starts_at) <= datetime('now')
+           AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+           ORDER BY expires_at DESC LIMIT 1`
+        ).bind(payload.sub).first();
+        if (!sub) return json({ active: false, plan: null, expiresAt: null });
+        return json({ active: true, plan: sub.plan, expiresAt: sub.expiresAt });
+      } catch (e) {
+        if (/no such table: user_subscriptions/i.test(e?.message)) return json({ active: false, plan: null, expiresAt: null });
+        throw e;
+      }
+    }
+
     // PATCH /api/auth/me (update username)
     if (path === 'auth/me' && method === 'PATCH') {
       const token = getBearerToken(request);
@@ -1536,6 +1557,40 @@ export async function onRequest(context) {
         }
       } else {
         return json({ error: 'Invalid content type or commentId' }, 400);
+      }
+    }
+
+    // POST /api/admin/subscription - grant subscription to user (admin only)
+    if (path === 'admin/subscription' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub || !(await isAdmin(payload.sub))) return json({ error: 'Admin access required' }, 403);
+      const body = await request.json().catch(() => ({}));
+      const identifier = (body.userId || body.user_id || body.username || '').toString().trim();
+      const plan = (body.plan || 'unlimited_copyrighted_art').toString().trim().slice(0, 80) || 'unlimited_copyrighted_art';
+      const months = body.months != null && body.months !== '' ? parseInt(body.months, 10) : 12;
+      const lifetime = months <= 0;
+      if (!identifier) return json({ error: 'userId or username required' }, 400);
+      const resolved = await resolveUser(db, identifier, {});
+      const userId = resolved?.id;
+      if (!userId) return json({ error: 'User not found' }, 404);
+      try {
+        const id = crypto.randomUUID();
+        const startsAt = new Date().toISOString();
+        let expiresAt = null;
+        if (!lifetime) {
+          const d = new Date();
+          d.setMonth(d.getMonth() + Math.min(120, Math.max(1, months)));
+          expiresAt = d.toISOString();
+        }
+        await db.prepare(
+          'INSERT INTO user_subscriptions (id, user_id, plan, starts_at, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(id, userId, plan, startsAt, expiresAt, startsAt).run();
+        return json({ success: true, subscription: { id, plan, expiresAt } });
+      } catch (e) {
+        if (/no such table: user_subscriptions/i.test(e?.message)) return json({ error: 'Run migration 0019_user_subscriptions.sql' }, 500);
+        throw e;
       }
     }
 

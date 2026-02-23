@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Plans — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme-loader.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .plans-page { max-width: 560px; margin: 0 auto; padding: 40px 24px 60px; }
+    .plans-page h1 { font-size: 1.75rem; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .plans-page .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; }
+    .plans-page p { margin-bottom: 16px; line-height: 1.6; color: var(--text); }
+    .plans-page a { color: var(--accent); }
+    .plans-page a:hover { text-decoration: underline; }
+    .plan-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .plan-card.featured { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .plan-card h2 { font-size: 1.2rem; margin-bottom: 8px; }
+    .plan-card .plan-desc { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 16px; line-height: 1.5; }
+    .plan-card ul { margin: 0 0 20px 1.2em; padding: 0; color: var(--text); font-size: 0.95rem; line-height: 1.6; }
+    .plan-card ul li { margin-bottom: 6px; }
+    .plan-status { font-size: 0.9rem; color: var(--accent); margin-bottom: 16px; font-weight: 500; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
+          <a href="/users.html" role="menuitem">Find Friends</a>
+          <a href="/suggestions.html" role="menuitem">Suggestions</a>
+          <a href="/plans.html" role="menuitem" aria-current="page">Plans</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem">Themes</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/contact.html" role="menuitem">Contact</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+          <a href="/backend.html" class="nav-admin-only" role="menuitem">Backend</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="plans-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Subscription Plans</h1>
+    <p class="subtitle">Upgrade for expanded access to licensed and copyrighted artwork.</p>
+
+    <div id="subscription-status" class="plan-status" style="display:none"></div>
+
+    <div class="plan-card featured">
+      <h2>Unlimited Copyrighted Art</h2>
+      <p class="plan-desc">Full access to our licensed copyrighted art collection. View, save, and share without limits.</p>
+      <ul>
+        <li>Unlimited views of licensed copyrighted content</li>
+        <li>Full-resolution downloads (where permitted)</li>
+        <li>No daily or monthly caps</li>
+      </ul>
+      <a href="/contact.html?subject=Unlimited%20Copyrighted%20Art%20subscription" class="btn btn-primary">Contact to subscribe</a>
+    </div>
+
+    <p>For pricing and availability, <a href="/contact.html">contact us</a>. Current subscribers can manage their plan from their account.</p>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+  <script>
+    const API = '/api';
+    const authToken = localStorage.getItem('tchoff_token');
+    document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+
+    async function loadSubscriptionStatus() {
+      if (!authToken) return;
+      try {
+        const res = await fetch(API + '/subscription/me', { headers: { Authorization: 'Bearer ' + authToken } });
+        const data = res.ok ? await res.json() : {};
+        const el = document.getElementById('subscription-status');
+        if (data.active && data.plan) {
+          el.textContent = '✓ You have an active subscription: ' + data.plan + (data.expiresAt ? ' (expires ' + new Date(data.expiresAt).toLocaleDateString() + ')' : '');
+          el.style.display = 'block';
+        }
+      } catch (_) {}
+    }
+    loadSubscriptionStatus();
+  </script>
+</body>
+</html>
