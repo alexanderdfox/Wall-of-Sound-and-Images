@@ -394,7 +394,7 @@ export async function onRequest(context) {
           `SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
         ).bind(...feedWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled/i.test(e?.message)) {
+        if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
             const imgFilter = " WHERE (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
             countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100)').first();
@@ -402,7 +402,7 @@ export async function onRequest(context) {
               'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
             ).bind(per, offset).all();
           } catch (e2) {
-            if (/no column named disabled|no such table: users/i.test(e2?.message)) {
+            if (/no column named disabled|no such column.*disabled|no such table: users/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images ORDER BY num DESC LIMIT 100)').first();
               rows = await db.prepare(
                 'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
@@ -475,14 +475,14 @@ export async function onRequest(context) {
           `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
         ).bind(...userImagesWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named visibility|no column named disabled/i.test(e?.message)) {
+        if (/no column named visibility|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
             countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0)').bind(id).first();
             rows = await db.prepare(
               'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT ? OFFSET ?'
             ).bind(id, per, offset).all();
           } catch (e2) {
-            if (/no column named disabled/i.test(e2?.message)) {
+            if (/no column named disabled|no such column.*disabled/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
               rows = await db.prepare(
                 'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
@@ -1294,7 +1294,7 @@ export async function onRequest(context) {
           }
           return json({ success: true, message: 'Image disabled' });
         } catch (e) {
-          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          if (/no column named disabled|no such column.*disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
           throw e;
         }
       } else if (contentType === 'sound') {
@@ -1309,7 +1309,7 @@ export async function onRequest(context) {
           }
           return json({ success: true, message: 'Sound disabled' });
         } catch (e) {
-          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          if (/no column named disabled|no such column.*disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
           throw e;
         }
       } else if (contentType === 'comment' && commentId) {
@@ -1321,7 +1321,7 @@ export async function onRequest(context) {
           }
           return json({ success: true, message: 'Comment disabled' });
         } catch (e) {
-          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          if (/no column named disabled|no such column.*disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
           throw e;
         }
       } else {
@@ -1421,7 +1421,7 @@ export async function onRequest(context) {
         return json({ items, total, page, per });
       } catch (e) {
         if (/no such table: reports/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
-        if (/no column named disabled/i.test(e?.message)) {
+        if (/no column named disabled|no such column.*disabled/i.test(e?.message)) {
           const rows = await db.prepare(
             `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at, r.reporter_ip,
               u.username as reporter_username,
@@ -1471,7 +1471,7 @@ export async function onRequest(context) {
           'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
         ).bind(id, id).first();
       } catch (e) {
-        if (/no column named user_id|no column named disabled/i.test(e?.message)) {
+        if (/no column named user_id|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           post = await db.prepare(
             'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
           ).bind(id, id).first();
@@ -1501,7 +1501,7 @@ async function resolveUser(db, identifier) {
     }
     return user;
   } catch (e) {
-    if (/no column named disabled/i.test(e?.message)) {
+    if (/no column named disabled|no such column.*disabled/i.test(e?.message)) {
       let user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(identifier).first();
       if (!user) user = await db.prepare('SELECT id, username FROM users WHERE username = ?').bind(identifier).first();
       return user;
