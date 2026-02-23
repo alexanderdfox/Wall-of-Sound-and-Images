@@ -1223,6 +1223,37 @@ export async function onRequest(context) {
       return json({ success: true, message: 'Report submitted. We will review it.' });
     }
 
+    // POST /api/contact - submit contact form (stored for admin)
+    if (path === 'contact' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const name = (body.name || '').toString().trim().slice(0, 100);
+      const email = (body.email || '').toString().trim().toLowerCase().slice(0, 254);
+      const subject = (body.subject || '').toString().trim().slice(0, 200);
+      const message = (body.message || '').toString().trim().slice(0, 5000);
+      if (!email || !message) return json({ error: 'Email and message required' }, 400);
+      if (!/^[^\s@]+@[^\s@]+(\.[^\s@]+)+$/.test(email)) return json({ error: 'Invalid email' }, 400);
+      const token = getBearerToken(request);
+      let userId = null;
+      if (token && env.JWT_SECRET) {
+        try {
+          const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+          if (payload?.sub) userId = payload.sub;
+        } catch (_) {}
+      }
+      const senderIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      try {
+        await db.prepare(
+          'INSERT INTO contact_messages (id, sender_name, sender_email, subject, message, user_id, sender_ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(id, name || null, email, subject || null, message, userId, senderIp, createdAt).run();
+        return json({ success: true, message: 'Message sent. We will get back to you.' });
+      } catch (e) {
+        if (/no such table: contact_messages/i.test(e?.message)) return json({ error: 'Contact form not configured' }, 500);
+        throw e;
+      }
+    }
+
     // Helper: check if user is admin (username tchoff or env ADMIN_USERNAME)
     async function isAdmin(userId) {
       if (!userId) return false;
@@ -1295,6 +1326,43 @@ export async function onRequest(context) {
         }
       } else {
         return json({ error: 'Invalid content type or commentId' }, 400);
+      }
+    }
+
+    // GET /api/admin/contact - list contact messages (admin only)
+    if (path === 'admin/contact' && method === 'GET') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub || !(await isAdmin(payload.sub))) return json({ error: 'Admin access required' }, 403);
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 20));
+      const offset = (page - 1) * per;
+      try {
+        const countRow = await db.prepare('SELECT COUNT(*) as c FROM contact_messages').first();
+        const rows = await db.prepare(
+          `SELECT c.id, c.sender_name, c.sender_email, c.subject, c.message, c.user_id, c.sender_ip, c.created_at,
+            u.username as sender_username
+           FROM contact_messages c
+           LEFT JOIN users u ON u.id = c.user_id
+           ORDER BY c.created_at DESC LIMIT ? OFFSET ?`
+        ).bind(per, offset).all();
+        const items = (rows.results || []).map((r) => ({
+          id: r.id,
+          senderName: r.sender_name || '',
+          senderEmail: r.sender_email || '',
+          senderUsername: r.sender_username || null,
+          subject: r.subject || '',
+          message: r.message || '',
+          userId: r.user_id || null,
+          senderIp: r.sender_ip || null,
+          createdAt: r.created_at ?? r.createdAt,
+        }));
+        const total = countRow?.c ?? 0;
+        return json({ items, total, page, per });
+      } catch (e) {
+        if (/no such table: contact_messages/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        throw e;
       }
     }
 

@@ -16,6 +16,11 @@
     .contact-page p { margin-bottom: 16px; line-height: 1.6; color: var(--text); }
     .contact-page a { color: var(--accent); }
     .contact-page a:hover { text-decoration: underline; }
+    .contact-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-top: 24px; }
+    .contact-form label { display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 6px; }
+    .contact-form input, .contact-form textarea { width: 100%; padding: 12px; margin-bottom: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font-sans); }
+    .contact-form textarea { min-height: 120px; resize: vertical; }
+    .contact-form .error { color: var(--danger); font-size: 0.9rem; margin-bottom: 12px; }
     .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
     .back-link:hover { color: var(--text); }
   </style>
@@ -65,13 +70,52 @@
     <h1>Contact</h1>
     <p class="subtitle">Questions, support, or feedback about Tchoff.</p>
 
-    <p>For general inquiries, DMCA notices, privacy requests, or account issues, please use the contact method published on the Service or reach out to the site operator.</p>
-    <p>You can also find relevant information in our <a href="/terms.html">Terms of Use</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
+    <p>For general inquiries, DMCA notices, privacy requests, or account issues, send a message below. Submissions are sent to the Tchoff admin.</p>
+    <form id="contact-form" class="contact-form">
+      <div id="contact-error" class="error" style="display:none"></div>
+      <label for="contact-name">Name (optional)</label>
+      <input type="text" id="contact-name" name="name" placeholder="Your name" maxlength="100" autocomplete="name">
+      <label for="contact-email">Email *</label>
+      <input type="email" id="contact-email" name="email" placeholder="your@email.com" required maxlength="254" autocomplete="email">
+      <label for="contact-subject">Subject (optional)</label>
+      <input type="text" id="contact-subject" name="subject" placeholder="Brief subject" maxlength="200">
+      <label for="contact-message">Message *</label>
+      <textarea id="contact-message" name="message" placeholder="Your message…" required maxlength="5000"></textarea>
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+    <p style="margin-top:24px">See also our <a href="/terms.html">Terms of Use</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
   </main>
 
   <script src="/nav-dropdown.js"></script>
   <script>
+    const API = '/api';
+    const authToken = localStorage.getItem('tchoff_token');
     document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+    document.getElementById('contact-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('contact-error');
+      errEl.style.display = 'none';
+      const payload = {
+        name: document.getElementById('contact-name').value.trim(),
+        email: document.getElementById('contact-email').value.trim(),
+        subject: document.getElementById('contact-subject').value.trim(),
+        message: document.getElementById('contact-message').value.trim(),
+      };
+      try {
+        const res = await fetch(API + '/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: 'Bearer ' + authToken } : {}) },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send');
+        document.getElementById('contact-form').reset();
+        alert(data.message || 'Message sent.');
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      }
+    });
   </script>
 </body>
 </html>

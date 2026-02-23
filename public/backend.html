@@ -28,6 +28,11 @@
     .report-detail { font-size: 0.8rem; color: var(--text-muted); }
     .report-detail strong { color: var(--text); }
     .report-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    .contact-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .contact-item:last-child { border-bottom: none; }
+    .contact-item .contact-from { font-weight: 500; }
+    .contact-item .contact-meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .contact-item .contact-message { margin-top: 8px; white-space: pre-wrap; font-size: 0.95rem; }
     .pagination-backend { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
   </style>
 </head>
@@ -83,6 +88,11 @@
 
     <div id="backend-content" style="display:none">
       <section class="backend-section">
+        <h2>Contact Messages</h2>
+        <div id="contact-list"></div>
+        <div class="pagination-backend" id="contact-pagination"></div>
+      </section>
+      <section class="backend-section">
         <h2>Content Reports</h2>
         <div id="reports-list"></div>
         <div class="pagination-backend" id="reports-pagination"></div>
@@ -110,7 +120,44 @@
         return;
       }
       document.getElementById('backend-content').style.display = 'block';
+      loadContact(1);
       loadReports(1);
+    }
+
+    let contactPage = 1;
+    async function loadContact(page) {
+      contactPage = page;
+      const list = document.getElementById('contact-list');
+      const pagEl = document.getElementById('contact-pagination');
+      list.innerHTML = '<p class="loading">Loading…</p>';
+      try {
+        const res = await fetch(`${API}/admin/contact?page=${page}&per=20`, { headers: { Authorization: 'Bearer ' + authToken } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const items = data.items || [];
+        list.innerHTML = items.length === 0
+          ? '<p class="report-meta">No contact messages yet.</p>'
+          : items.map((c) => `
+            <div class="contact-item">
+              <div class="contact-from">${c.senderName ? escapeHtml(c.senderName) + ' ' : ''}&lt;${escapeHtml(c.senderEmail)}&gt;${c.senderUsername ? ' · @' + escapeHtml(c.senderUsername) : ''}</div>
+              ${c.subject ? `<div class="report-meta">Subject: ${escapeHtml(c.subject)}</div>` : ''}
+              <div class="contact-meta">${c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}${c.senderIp ? ' · IP: ' + escapeHtml(c.senderIp) : ''}</div>
+              <div class="contact-message">${escapeHtml(c.message)}</div>
+            </div>`).join('');
+        const total = data.total ?? 0;
+        const per = data.per ?? 20;
+        const totalPages = Math.max(1, Math.ceil(total / per));
+        pagEl.innerHTML = totalPages <= 1 ? '' : `
+          <button type="button" class="btn btn-ghost" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">← Prev</button>
+          <span>Page ${page} of ${totalPages}</span>
+          <button type="button" class="btn btn-ghost" ${page >= totalPages ? 'disabled' : ''} data-page="${page + 1}">Next →</button>
+        `;
+        pagEl.querySelectorAll('button[data-page]').forEach((b) => {
+          b.addEventListener('click', () => loadContact(parseInt(b.dataset.page, 10)));
+        });
+      } catch (err) {
+        list.innerHTML = `<p class="error">${err.message}</p>`;
+      }
     }
 
     async function loadReports(page) {
