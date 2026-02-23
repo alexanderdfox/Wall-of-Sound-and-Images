@@ -168,7 +168,14 @@ export async function onRequest(context) {
       const email = (body?.email || '').toString().trim().toLowerCase();
       const password = body?.password;
       if (!email || !password) return json({ error: 'Email and password required' }, 400);
-      const user = await db.prepare('SELECT id, email, password_hash, username, disabled FROM users WHERE email = ?').bind(email).first();
+      let user;
+      try {
+        user = await db.prepare('SELECT id, email, password_hash, username, disabled FROM users WHERE email = ?').bind(email).first();
+      } catch (e) {
+        if (/no column named disabled|no such column.*disabled/i.test(e?.message)) {
+          user = await db.prepare('SELECT id, email, password_hash, username FROM users WHERE email = ?').bind(email).first();
+        } else throw e;
+      }
       if (!user) return json({ error: 'Invalid email or password' }, 401);
       if (user.disabled) return json({ error: 'Account is disabled. Contact support if you believe this is an error.' }, 403);
       const ok = await verifyPassword(password, user.password_hash);
@@ -188,7 +195,14 @@ export async function onRequest(context) {
       if (!token || !secret) return json({ user: null });
       const payload = await verifyJwt(token, secret);
       if (!payload?.sub) return json({ user: null });
-      const user = await db.prepare('SELECT id, email, username, disabled, disable_requested_at FROM users WHERE id = ?').bind(payload.sub).first();
+      let user;
+      try {
+        user = await db.prepare('SELECT id, email, username, disabled, disable_requested_at FROM users WHERE id = ?').bind(payload.sub).first();
+      } catch (e) {
+        if (/no column named disabled|no such column.*disabled|no column named disable_requested_at/i.test(e?.message)) {
+          user = await db.prepare('SELECT id, email, username FROM users WHERE id = ?').bind(payload.sub).first();
+        } else throw e;
+      }
       if (!user || user.disabled) return json({ user: null });
       const displayName = user.username || user.email?.split('@')[0] || 'user';
       return json({
@@ -1421,9 +1435,51 @@ export async function onRequest(context) {
         return json({ items, total, page, per });
       } catch (e) {
         if (/no such table: reports/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
-        if (/no column named disabled|no such column.*disabled/i.test(e?.message)) {
-          const rows = await db.prepare(
-            `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at, r.reporter_ip,
+        if (/no such column.*reporter_ip|no column named reporter_ip/i.test(e?.message)) {
+          try {
+            const rows = await db.prepare(
+              `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at,
+                u.username as reporter_username,
+                i.origin_ip as post_origin_ip, i.username as post_username_legacy, i.user_id as post_user_id, i.disabled as image_disabled,
+                s.disabled as sound_disabled,
+                poster_img.username as poster_username, poster_snd.username as poster_username_sound
+               FROM reports r
+               LEFT JOIN users u ON u.id = r.reporter_id
+               LEFT JOIN images i ON r.content_type = 'image' AND (
+                 (r.content_num IS NOT NULL AND i.num = r.content_num) OR
+                 (r.content_hash IS NOT NULL AND (i.babel_hash = r.content_hash OR i.image_hash = r.content_hash))
+               )
+               LEFT JOIN sounds s ON r.content_type = 'sound' AND (
+                 (r.content_num IS NOT NULL AND s.num = r.content_num) OR
+                 (r.content_hash IS NOT NULL AND s.hash = r.content_hash)
+               )
+               LEFT JOIN users poster_img ON i.user_id = poster_img.id
+               LEFT JOIN users poster_snd ON s.user_id = poster_snd.id
+               ORDER BY r.created_at DESC LIMIT ? OFFSET ?`
+            ).bind(per, offset).all();
+            const items = (rows.results || []).map((r) => {
+              const posterUsername = r.poster_username || r.poster_username_sound || r.post_username_legacy || '—';
+              const isDisabled = r.content_type === 'image' ? !!(r.image_disabled) : r.content_type === 'sound' ? !!(r.sound_disabled) : false;
+              return {
+                id: r.id,
+                contentType: r.content_type,
+                contentNum: r.content_num,
+                contentHash: r.content_hash,
+                reason: r.reason,
+                details: r.details || '',
+                createdAt: r.created_at ?? r.createdAt,
+                reporterUsername: r.reporter_username || '—',
+                reporterIp: null,
+                postOriginIp: r.post_origin_ip ?? null,
+                posterUsername,
+                isDisabled,
+              };
+            });
+            return json({ items, total: countRow?.c ?? 0, page, per });
+          } catch (e2) {
+            if (/no column named disabled|no such column.*disabled/i.test(e2?.message)) {
+              const rows = await db.prepare(
+                `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at,
               u.username as reporter_username,
               i.origin_ip as post_origin_ip, i.username as post_username_legacy,
               poster_img.username as poster_username, poster_snd.username as poster_username_sound
@@ -1450,12 +1506,15 @@ export async function onRequest(context) {
             details: r.details || '',
             createdAt: r.created_at ?? r.createdAt,
             reporterUsername: r.reporter_username || '—',
-            reporterIp: r.reporter_ip ?? null,
+            reporterIp: null,
             postOriginIp: r.post_origin_ip ?? null,
             posterUsername: r.poster_username || r.poster_username_sound || r.post_username_legacy || '—',
             isDisabled: false,
           }));
-          return json({ items, total: countRow?.c ?? 0, page, per });
+            return json({ items, total: countRow?.c ?? 0, page, per });
+            }
+            throw e2;
+          }
         }
         throw e;
       }

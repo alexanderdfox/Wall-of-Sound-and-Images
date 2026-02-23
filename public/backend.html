@@ -34,6 +34,19 @@
     .contact-item .contact-meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
     .contact-item .contact-message { margin-top: 8px; white-space: pre-wrap; font-size: 0.95rem; }
     .pagination-backend { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+    .bulk-upload-dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+    .bulk-upload-dropzone:hover, .bulk-upload-dropzone.dragover { border-color: var(--accent); background: var(--bg); }
+    .bulk-upload-dropzone p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+    .bulk-upload-files { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .bulk-upload-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.85rem; }
+    .bulk-upload-file img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
+    .bulk-upload-file .remove { cursor: pointer; color: var(--text-muted); padding: 0 4px; }
+    .bulk-upload-file .remove:hover { color: var(--accent); }
+    .bulk-upload-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
+    .bulk-upload-progress { margin-top: 12px; font-size: 0.9rem; color: var(--text-muted); }
+    .bulk-upload-results { margin-top: 16px; font-size: 0.9rem; }
+    .bulk-upload-results .ok { color: var(--success, #22c55e); }
+    .bulk-upload-results .err { color: var(--error, #ef4444); }
   </style>
 </head>
 <body>
@@ -88,6 +101,20 @@
 
     <div id="backend-content" style="display:none">
       <section class="backend-section">
+        <h2>Bulk Upload</h2>
+        <p class="report-meta" style="margin-bottom:12px">Upload up to 10 images or audio files at once. Images: HEIC, JPEG, PNG, WebP. Audio: WAV, MP3, M4A, WebM (max 30 sec each).</p>
+        <div class="bulk-upload-dropzone" id="bulk-dropzone">
+          <p>Drop files here or click to browse</p>
+          <input type="file" id="bulk-file-input" accept="image/*,audio/*,.heic,.heif,.mp3,.wav,.ogg,.m4a,.webm" multiple hidden>
+        </div>
+        <div class="bulk-upload-files" id="bulk-files"></div>
+        <div class="bulk-upload-actions">
+          <button type="button" class="btn btn-primary" id="bulk-upload-btn" disabled>Upload 0 files</button>
+        </div>
+        <div class="bulk-upload-progress" id="bulk-progress" style="display:none"></div>
+        <div class="bulk-upload-results" id="bulk-results"></div>
+      </section>
+      <section class="backend-section">
         <h2>Contact Messages</h2>
         <div id="contact-list"></div>
         <div class="pagination-backend" id="contact-pagination"></div>
@@ -100,6 +127,8 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
   <script>
     const API = '/api';
@@ -236,6 +265,143 @@
     }
 
     init();
+
+    // Bulk upload (admin only)
+    const MAX_BULK = 10;
+    let bulkFiles = [];
+
+    function isImageFile(f) {
+      if (!f) return false;
+      const t = (f.type || '').toLowerCase();
+      const n = (f.name || '').toLowerCase();
+      return t.startsWith('image/') || /\.(heic|heif)$/.test(n);
+    }
+    function isAudioFile(f) {
+      if (!f) return false;
+      const t = (f.type || '').toLowerCase();
+      const n = (f.name || '').toLowerCase();
+      return t.startsWith('audio/') || t.startsWith('video/') || /\.(mp3|wav|ogg|webm|m4a|mp4)$/i.test(n);
+    }
+
+    const bulkDropzone = document.getElementById('bulk-dropzone');
+    const bulkFileInput = document.getElementById('bulk-file-input');
+    const bulkFilesEl = document.getElementById('bulk-files');
+    const bulkBtn = document.getElementById('bulk-upload-btn');
+    const bulkProgress = document.getElementById('bulk-progress');
+    const bulkResults = document.getElementById('bulk-results');
+
+    bulkDropzone.addEventListener('click', () => bulkFileInput?.click());
+    bulkDropzone.addEventListener('dragover', (e) => { e.preventDefault(); bulkDropzone.classList.add('dragover'); });
+    bulkDropzone.addEventListener('dragleave', () => bulkDropzone.classList.remove('dragover'));
+    bulkDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      bulkDropzone.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files).filter((f) => isImageFile(f) || isAudioFile(f));
+      addBulkFiles(files);
+    });
+    bulkFileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []).filter((f) => isImageFile(f) || isAudioFile(f));
+      addBulkFiles(files);
+      e.target.value = '';
+    });
+
+    function addBulkFiles(files) {
+      for (const f of files) {
+        if (bulkFiles.length >= MAX_BULK) break;
+        bulkFiles.push(f);
+      }
+      renderBulkFiles();
+    }
+
+    function removeBulkFile(index) {
+      bulkFiles.splice(index, 1);
+      renderBulkFiles();
+    }
+
+    function renderBulkFiles() {
+      bulkFilesEl.innerHTML = bulkFiles.map((f, i) => {
+        const icon = isImageFile(f)
+          ? `<img src="${URL.createObjectURL(f)}" alt="" onload="URL.revokeObjectURL(this.src)">`
+          : '<span aria-hidden="true">🎵</span>';
+        return `<div class="bulk-upload-file" data-index="${i}">${icon}<span>${escapeHtml(f.name)}</span><span class="remove" data-index="${i}" aria-label="Remove">×</span></div>`;
+      }).join('');
+      bulkFilesEl.querySelectorAll('.remove').forEach((el) => {
+        el.addEventListener('click', (e) => { e.stopPropagation(); removeBulkFile(parseInt(el.dataset.index, 10)); });
+      });
+      bulkBtn.disabled = bulkFiles.length === 0;
+      bulkBtn.textContent = `Upload ${bulkFiles.length} file${bulkFiles.length !== 1 ? 's' : ''}`;
+    }
+
+    bulkBtn.addEventListener('click', async () => {
+      if (bulkFiles.length === 0 || !authToken) return;
+      bulkBtn.disabled = true;
+      bulkProgress.style.display = '';
+      bulkResults.innerHTML = '';
+      const results = [];
+      for (let i = 0; i < bulkFiles.length; i++) {
+        const f = bulkFiles[i];
+        bulkProgress.textContent = `Processing ${i + 1}/${bulkFiles.length}: ${f.name}…`;
+        try {
+          if (isImageFile(f)) {
+            bulkProgress.textContent = `Computing hash ${i + 1}/${bulkFiles.length}…`;
+            const compat = await (typeof ensureCanvasCompatible === 'function' ? ensureCanvasCompatible(f) : Promise.resolve(f));
+            const [imageHash, babelia] = await Promise.all([hashImageAtSize(compat), computeBabelia(compat)]);
+            const { babelHash, pngBlob, width: bw, height: bh } = babelia;
+            const pngBase64 = await new Promise((res) => {
+              const r = new FileReader();
+              r.onload = () => res(r.result?.split(',')[1] || null);
+              r.readAsDataURL(pngBlob);
+            });
+            bulkProgress.textContent = `Uploading ${i + 1}/${bulkFiles.length}…`;
+            const form = new FormData();
+            form.append('image', f);
+            form.append('imageHash', imageHash);
+            form.append('babelHash', babelHash);
+            form.append('babeliaPng', pngBase64 || 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+            form.append('width', String(bw || ''));
+            form.append('height', String(bh || ''));
+            form.append('caption', '');
+            form.append('visibility', 'public');
+            const res = await fetch(API + '/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: form });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) results.push({ name: f.name, ok: true, url: data.url || data.urlNum });
+            else results.push({ name: f.name, ok: false, err: data.error || res.statusText });
+          } else {
+            const objectUrl = URL.createObjectURL(f);
+            const duration = await new Promise((res) => {
+              const a = new Audio();
+              a.onloadedmetadata = () => res(a.duration);
+              a.onerror = () => res(0);
+              a.src = objectUrl;
+            });
+            URL.revokeObjectURL(objectUrl);
+            if (duration > 30) {
+              results.push({ name: f.name, ok: false, err: 'Audio must be 30 seconds or less' });
+            } else {
+              bulkProgress.textContent = `Uploading ${i + 1}/${bulkFiles.length}…`;
+              const form = new FormData();
+              form.append('audio', f);
+              form.append('caption', '');
+              form.append('visibility', 'public');
+              form.append('duration', Math.round(duration));
+              const res = await fetch(API + '/upload-sound', { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: form });
+              const data = await res.json().catch(() => ({}));
+              if (res.ok && data.success) results.push({ name: f.name, ok: true, url: data.url || data.urlNum });
+              else results.push({ name: f.name, ok: false, err: data.error || res.statusText });
+            }
+          }
+        } catch (err) {
+          results.push({ name: f.name, ok: false, err: err.message });
+        }
+      }
+      bulkProgress.style.display = 'none';
+      bulkFiles = [];
+      renderBulkFiles();
+      bulkBtn.disabled = false;
+      bulkResults.innerHTML = results.map((r) =>
+        r.ok ? `<div class="ok">✓ ${escapeHtml(r.name)}</div>` : `<div class="err">✗ ${escapeHtml(r.name)}: ${escapeHtml(r.err)}</div>`
+      ).join('');
+    });
   </script>
 </body>
 </html>
