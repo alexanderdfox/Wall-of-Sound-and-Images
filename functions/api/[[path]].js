@@ -46,9 +46,10 @@ export async function onRequest(context) {
     if (path === 'users/search' && method === 'GET') {
       const q = (url.searchParams.get('q') || '').trim().replace(/^@/, '').slice(0, 50);
       if (!q || q.length < 2) return json({ users: [] });
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
       const rows = await db.prepare(
-        'SELECT id, username FROM users WHERE username LIKE ? AND COALESCE(disabled,0) = 0 ORDER BY username LIMIT 10'
-      ).bind('%' + q + '%').all();
+        'SELECT id, username FROM users WHERE username LIKE ? AND COALESCE(disabled,0) = 0 AND LOWER(username) != ? ORDER BY username LIMIT 10'
+      ).bind('%' + q + '%', adminUsername).all();
       const users = (rows.results || []).map((r) => ({ id: r.id, username: r.username || 'user' }));
       return json({ users });
     }
@@ -65,8 +66,9 @@ export async function onRequest(context) {
         const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
         if (payload?.sub) viewerId = payload.sub;
       }
-      let sql = 'SELECT u.id, u.username FROM users u WHERE u.username IS NOT NULL AND COALESCE(u.disabled,0) = 0';
-      const params = [];
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      let sql = 'SELECT u.id, u.username FROM users u WHERE u.username IS NOT NULL AND COALESCE(u.disabled,0) = 0 AND LOWER(u.username) != ?';
+      const params = [adminUsername];
       if (viewerId) {
         sql += ' AND u.id != ?';
         params.push(viewerId);
@@ -104,8 +106,8 @@ export async function onRequest(context) {
           friendStatus: statusMap[r.id] || 'none',
         }));
       }
-      let countSql = 'SELECT COUNT(*) as c FROM users WHERE username IS NOT NULL AND COALESCE(disabled,0) = 0';
-      const countParams = [];
+      let countSql = 'SELECT COUNT(*) as c FROM users WHERE username IS NOT NULL AND COALESCE(disabled,0) = 0 AND LOWER(username) != ?';
+      const countParams = [adminUsername];
       if (viewerId) {
         countSql += ' AND id != ?';
         countParams.push(viewerId);
@@ -434,7 +436,8 @@ export async function onRequest(context) {
     if (path.startsWith('user/') && path.endsWith('/sounds') && method === 'GET') {
       const identifier = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
       if (!identifier) return json({ error: 'User required' }, 400);
-      const user = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const user = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       if (!user) return json({ error: 'User not found' }, 404);
       const id = user.id;
       const token = getBearerToken(request);
@@ -468,7 +471,8 @@ export async function onRequest(context) {
     if (path.startsWith('user/') && path.endsWith('/images') && method === 'GET') {
       const identifier = path.slice('user/'.length, -7).replace(/[^a-zA-Z0-9-_]/g, '');
       if (!identifier) return json({ error: 'User required' }, 400);
-      const user = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const user = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       if (!user) return json({ error: 'User not found' }, 404);
       const id = user.id;
       const token = getBearerToken(request);
@@ -534,7 +538,8 @@ export async function onRequest(context) {
     if (path.startsWith('user/') && !path.includes('/images') && !path.includes('by-email') && !path.includes('by-username') && !path.includes('/followers') && !path.includes('/following') && method === 'GET') {
       const identifier = path.slice('user/'.length).replace(/[^a-zA-Z0-9-_]/g, '');
       if (!identifier) return json({ error: 'User required' }, 400);
-      const user = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const user = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       if (!user) return json({ error: 'User not found' }, 404);
       const id = user.id;
       const countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
@@ -564,7 +569,8 @@ export async function onRequest(context) {
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
       if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
-      const target = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const target = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       if (!target) return json({ error: 'User not found' }, 404);
       const targetId = target.id;
       if (payload.sub === targetId) return json({ error: 'Cannot follow yourself' }, 400);
@@ -581,7 +587,8 @@ export async function onRequest(context) {
     // DELETE /api/follow/:userId - unfollow
     if (path.match(/^follow\/[a-zA-Z0-9_-]+$/) && method === 'DELETE') {
       const identifier = path.split('/')[1];
-      const target = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const target = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       const targetId = target ? target.id : identifier;
       const token = getBearerToken(request);
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
@@ -598,7 +605,8 @@ export async function onRequest(context) {
       const parts = path.split('/');
       const identifier = parts[1];
       const type = parts[2];
-      const user = await resolveUser(db, identifier);
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const user = await resolveUser(db, identifier, { excludeAdmin: adminUsername });
       if (!user) return json({ error: 'User not found' }, 404);
       const id = user.id;
       try {
@@ -617,6 +625,13 @@ export async function onRequest(context) {
 
     // POST /api/upload-sound
     if (path === 'upload-sound' && method === 'POST') {
+      const SOUND_MAX_BODY_BYTES = 5 * 1024 * 1024; // 5MB (slightly above 4MB file + overhead)
+
+      const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+      if (contentLength > SOUND_MAX_BODY_BYTES) {
+        return json({ error: 'Request too large (max 5MB)' }, 413);
+      }
+
       const token = getBearerToken(request);
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required to upload' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
@@ -628,7 +643,8 @@ export async function onRequest(context) {
       if (!contentType.includes('multipart/form-data')) return json({ error: 'Multipart form required' }, 400);
       const form = await request.formData();
       const audioFile = form.get('audio');
-      const caption = (form.get('caption') || '').toString().trim().slice(0, 500);
+      const captionRaw = (form.get('caption') || '').toString();
+      const caption = captionRaw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 500);
       const visibility = (form.get('visibility') || 'public').toString() === 'friends' ? 'friends' : 'public';
 
       if (!audioFile || typeof audioFile.arrayBuffer !== 'function') return json({ error: 'Audio file required' }, 400);
@@ -853,6 +869,16 @@ export async function onRequest(context) {
 
     // POST /api/upload
     if (path === 'upload' && method === 'POST') {
+      const UPLOAD_MAX_BODY_BYTES = 16 * 1024 * 1024; // 16MB request body limit
+      const BABELIA_MAX_BASE64 = 8 * 1024 * 1024;     // ~6MB decoded
+      const EXIF_MAX_BASE64 = 512 * 1024;              // 512KB
+
+      const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+      if (contentLength > UPLOAD_MAX_BODY_BYTES) {
+        return json({ error: 'Request too large (max 16MB)' }, 413);
+      }
+
+      const HEX64 = /^[a-f0-9]{64}$/i;
       let imageHash, babelHash, babeliaPng, exif, caption, username, width, height, visibility = 'public';
       let imageFile = null;
 
@@ -887,6 +913,15 @@ export async function onRequest(context) {
 
       if (!imageHash || !babelHash) {
         return json({ error: 'Missing imageHash or babelHash' }, 400);
+      }
+      if (!HEX64.test(String(imageHash)) || !HEX64.test(String(babelHash))) {
+        return json({ error: 'Invalid imageHash or babelHash (must be 64 hex chars)' }, 400);
+      }
+      if (babeliaPng && babeliaPng.length > BABELIA_MAX_BASE64) {
+        return json({ error: 'Babelia PNG too large' }, 413);
+      }
+      if (exif && exif.length > EXIF_MAX_BASE64) {
+        return json({ error: 'EXIF data too large' }, 413);
       }
 
       const token = getBearerToken(request);
@@ -925,40 +960,56 @@ export async function onRequest(context) {
       const maxRow = await db.prepare('SELECT COALESCE(MAX(num), 0) as m FROM images').first();
       const num = (maxRow?.m ?? 0) + 1;
       const createdAt = new Date().toISOString();
-      const exifBlob = exif ? atob(exif) : null;
+      let exifBlob = null;
+      if (exif) {
+        try {
+          exifBlob = atob(exif);
+        } catch (_) {
+          return json({ error: 'Invalid EXIF encoding' }, 400);
+        }
+      }
       const originIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
 
       const parseDim = (v) => {
         if (v == null || v === '') return null;
         const n = typeof v === 'number' ? v : parseInt(String(v), 10);
-        return Number.isFinite(n) && n > 0 ? n : null;
+        return Number.isFinite(n) && n > 0 && n <= 65535 ? n : null;
       };
       const widthInt = parseDim(width);
       const heightInt = parseDim(height);
+
+      const sanitizeCaption = (s) => String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 500);
+      const safeCaption = sanitizeCaption(caption);
 
       const insertUsername = displayName;
       const vis = (visibility === 'friends') ? 'friends' : 'public';
       try {
         await db.prepare(
           'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).bind(id, num, imageHash, babelHash, caption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
+        ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
       } catch (e) {
         if (/no column named user_id/i.test(e?.message)) {
           await db.prepare(
             'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(id, num, imageHash, babelHash, caption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob).run();
+          ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob).run();
         } else if (/no column named visibility/i.test(e?.message)) {
           await db.prepare(
             'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(id, num, imageHash, babelHash, caption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId).run();
+          ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId).run();
         } else throw e;
       }
 
       if (env.BABEL_IMAGES && babeliaPng && babeliaPng.length > 100) {
         try {
-          const binary = Uint8Array.from(atob(babeliaPng), (c) => c.charCodeAt(0));
+          const decoded = atob(babeliaPng);
+          const binary = new Uint8Array(decoded.length);
+          for (let i = 0; i < decoded.length; i++) binary[i] = decoded.charCodeAt(i);
           await kvPutWithRollover(env.BABEL_IMAGES, `babel:${babelHash}`, binary, { contentType: 'image/png' });
         } catch (e) {
+          const msg = String(e?.message || e);
+          if (/invalid character|invalid base64|failed to execute 'atob'/i.test(msg)) {
+            return json({ error: 'Invalid babelia PNG encoding' }, 400);
+          }
           console.error('KV put failed:', e);
         }
       }
@@ -968,7 +1019,7 @@ export async function onRequest(context) {
         num,
         hash: imageHash,
         babeliaLocation: babelHash,
-        caption: caption || '',
+        caption: safeCaption || '',
         username: insertUsername,
         createdAt,
         width: widthInt,
@@ -1198,6 +1249,9 @@ export async function onRequest(context) {
 
     // POST /api/report - report image or sound (copyright, illegal, other)
     if (path === 'report' && method === 'POST') {
+      const reportMaxBody = 16 * 1024; // 16KB
+      const cl = parseInt(request.headers.get('content-length') || '0', 10);
+      if (cl > reportMaxBody) return json({ error: 'Request too large' }, 413);
       const token = getBearerToken(request);
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required to report' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
@@ -1239,11 +1293,15 @@ export async function onRequest(context) {
 
     // POST /api/contact - submit contact form (stored for admin)
     if (path === 'contact' && method === 'POST') {
+      const contactMaxBody = 64 * 1024; // 64KB
+      const cl = parseInt(request.headers.get('content-length') || '0', 10);
+      if (cl > contactMaxBody) return json({ error: 'Request too large' }, 413);
       const body = await request.json().catch(() => ({}));
-      const name = (body.name || '').toString().trim().slice(0, 100);
-      const email = (body.email || '').toString().trim().toLowerCase().slice(0, 254);
-      const subject = (body.subject || '').toString().trim().slice(0, 200);
-      const message = (body.message || '').toString().trim().slice(0, 5000);
+      const stripCtl = (s) => String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const name = stripCtl(body?.name).trim().slice(0, 100);
+      const email = stripCtl(body?.email).trim().toLowerCase().slice(0, 254);
+      const subject = stripCtl(body?.subject).trim().slice(0, 200);
+      const message = stripCtl(body?.message).trim().slice(0, 5000);
       if (!email || !message) return json({ error: 'Email and message required' }, 400);
       if (!/^[^\s@]+@[^\s@]+(\.[^\s@]+)+$/.test(email)) return json({ error: 'Invalid email' }, 400);
       const token = getBearerToken(request);
@@ -1551,18 +1609,21 @@ export async function onRequest(context) {
   }
 }
 
-async function resolveUser(db, identifier) {
+async function resolveUser(db, identifier, options = {}) {
   if (!identifier) return null;
+  const excludeAdmin = (options.excludeAdmin || '').toString().trim().toLowerCase();
   try {
     let user = await db.prepare('SELECT id, username FROM users WHERE id = ? AND COALESCE(disabled,0) = 0').bind(identifier).first();
     if (!user) {
       user = await db.prepare('SELECT id, username FROM users WHERE username = ? AND COALESCE(disabled,0) = 0').bind(identifier).first();
     }
+    if (user && excludeAdmin && (user.username || '').toLowerCase() === excludeAdmin) return null;
     return user;
   } catch (e) {
     if (/no column named disabled|no such column.*disabled/i.test(e?.message)) {
       let user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(identifier).first();
       if (!user) user = await db.prepare('SELECT id, username FROM users WHERE username = ?').bind(identifier).first();
+      if (user && excludeAdmin && (user.username || '').toLowerCase() === excludeAdmin) return null;
       return user;
     }
     throw e;

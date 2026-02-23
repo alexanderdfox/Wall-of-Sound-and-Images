@@ -3,6 +3,21 @@
   const menu = document.getElementById('nav-dropdown');
   if (!btn || !menu) return;
 
+  // Hide backend link unless logged in as admin (tchoff)
+  (function hideBackendIfNotAdmin() {
+    const backendLink = document.querySelector('.nav-admin-only');
+    if (!backendLink) return;
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
+    if (!token) {
+      backendLink.style.display = 'none';
+      return;
+    }
+    fetch('/api/admin/check', { headers: { Authorization: 'Bearer ' + token } })
+      .then((r) => r.json())
+      .then((d) => { if (!d.admin) backendLink.style.display = 'none'; })
+      .catch(() => { backendLink.style.display = 'none'; });
+  })();
+
   function open() {
     menu.classList.add('open');
     btn.setAttribute('aria-expanded', 'true');
