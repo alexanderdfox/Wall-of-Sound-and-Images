@@ -1001,6 +1001,78 @@ document.getElementById('auth-signup-form').addEventListener('submit', async (e)
   }
 });
 
+// Passkey login
+document.getElementById('btn-login-passkey')?.addEventListener('click', async () => {
+  if (typeof SimpleWebAuthnBrowser === 'undefined' || !SimpleWebAuthnBrowser?.startAuthentication) {
+    alert('Passkeys are not supported in this browser.');
+    return;
+  }
+  const email = document.getElementById('auth-email')?.value?.trim().toLowerCase() || '';
+  try {
+    const optsRes = await fetch(`${API}/auth/passkey/login/options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(email ? { email } : {}),
+    });
+    const options = await optsRes.json();
+    if (!optsRes.ok) throw new Error(options.error || 'Could not get passkey options');
+    const credential = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+    const verifyRes = await fetch(`${API}/auth/passkey/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        response: credential,
+        expectedChallenge: options.challenge,
+      }),
+    });
+    const data = await verifyRes.json();
+    if (!verifyRes.ok) throw new Error(data.error || 'Passkey verification failed');
+    if (!data.token) throw new Error('Session could not be established');
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('tchoff_token', authToken);
+    authModal.close();
+    document.getElementById('btn-auth').title = '@' + (currentUser.username || '');
+    if (window.ThemeLoader?.syncFromServer) ThemeLoader.syncFromServer();
+    loadFeed(1);
+  } catch (err) {
+    if (err?.code === 'ERROR_CEREMONY_ABORTED') return;
+    alert(err.message || 'Passkey sign-in failed');
+  }
+});
+
+// Add passkey (when logged in)
+document.getElementById('btn-add-passkey')?.addEventListener('click', async () => {
+  if (!authToken) return;
+  if (typeof SimpleWebAuthnBrowser === 'undefined' || !SimpleWebAuthnBrowser?.startRegistration) {
+    alert('Passkeys are not supported in this browser.');
+    return;
+  }
+  try {
+    const optsRes = await fetch(`${API}/auth/passkey/register/options`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken },
+    });
+    const options = await optsRes.json();
+    if (!optsRes.ok) throw new Error(options.error || 'Could not get passkey options');
+    const credential = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+    const verifyRes = await fetch(`${API}/auth/passkey/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+      body: JSON.stringify({
+        response: credential,
+        expectedChallenge: options.challenge,
+      }),
+    });
+    const data = await verifyRes.json();
+    if (!verifyRes.ok) throw new Error(data.error || 'Passkey registration failed');
+    alert('Passkey added! You can now sign in with it.');
+  } catch (err) {
+    if (err?.code === 'ERROR_CEREMONY_ABORTED') return;
+    alert(err.message || 'Could not add passkey');
+  }
+});
+
 // Init
 const pageParam = parseInt(new URLSearchParams(window.location.search).get('page'), 10) || 1;
 loadFeed(pageParam);

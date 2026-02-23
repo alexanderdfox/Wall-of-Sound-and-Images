@@ -1,6 +1,14 @@
 // Cloudflare Pages Function: handles all /api/* routes
 
 import { hashPassword, verifyPassword, signJwt, verifyJwt, getBearerToken } from '../_auth.js';
+import {
+  getRpId,
+  getOrigin,
+  createRegistrationOptions,
+  createAuthenticationOptions,
+  verifyRegistration,
+  verifyAuthentication,
+} from '../_passkey.js';
 
 const KV_MAX_PAIRS = 10;
 
@@ -188,6 +196,115 @@ export async function onRequest(context) {
       const jwt = await signJwt({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, secret);
       if (!jwt) return json({ error: 'Session could not be established. Please try again.' }, 503);
       return json({ success: true, user: { id: user.id, username: displayName }, token: jwt });
+    }
+
+    // POST /api/auth/passkey/register/options - get options to add passkey (auth required)
+    if (path === 'auth/passkey/register/options' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const user = await db.prepare('SELECT id, email, username FROM users WHERE id = ?').bind(payload.sub).first();
+      if (!user) return json({ error: 'User not found' }, 404);
+      try {
+        const existing = await db.prepare('SELECT credential_id FROM passkey_credentials WHERE user_id = ?').bind(payload.sub).all();
+        const excludeCreds = (existing.results || []).map((r) => r.credential_id);
+        const origin = getOrigin(request.url);
+        const rpId = getRpId(url.hostname);
+        const options = await createRegistrationOptions(rpId, user.email, user.id, excludeCreds);
+        return json(options);
+      } catch (e) {
+        if (/no such table: passkey_credentials/i.test(e?.message)) return json({ error: 'Passkeys not configured. Run migration 0021.' }, 503);
+        throw e;
+      }
+    }
+
+    // POST /api/auth/passkey/register - verify and store passkey (auth required)
+    if (path === 'auth/passkey/register' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const body = await request.json().catch(() => ({}));
+      const response = body?.response;
+      const expectedChallenge = body?.expectedChallenge;
+      if (!response || !expectedChallenge) return json({ error: 'Missing response or challenge' }, 400);
+      try {
+        const origin = getOrigin(request.url);
+        const rpId = getRpId(url.hostname);
+        const cred = await verifyRegistration(response, expectedChallenge, origin, rpId);
+        if (!cred) return json({ error: 'Passkey verification failed' }, 400);
+        const pkBase64 = typeof cred.publicKey === 'object' && cred.publicKey instanceof Uint8Array
+          ? btoa(String.fromCharCode(...cred.publicKey))
+          : cred.publicKey;
+        const id = crypto.randomUUID();
+        await db.prepare(
+          'INSERT INTO passkey_credentials (id, user_id, credential_id, public_key, counter, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(id, payload.sub, cred.credentialID, pkBase64, cred.counter || 0, new Date().toISOString()).run();
+        return json({ success: true });
+      } catch (e) {
+        if (/no such table: passkey_credentials/i.test(e?.message)) return json({ error: 'Passkeys not configured' }, 503);
+        return json({ error: e?.message || 'Verification failed' }, 400);
+      }
+    }
+
+    // POST /api/auth/passkey/login/options - get assertion options
+    if (path === 'auth/passkey/login/options' && method === 'POST') {
+      try {
+        const origin = getOrigin(request.url);
+        const rpId = getRpId(url.hostname);
+        const body = await request.json().catch(() => ({}));
+        const email = (body?.email || '').toString().trim().toLowerCase();
+        let allowCredentials = [];
+        if (email) {
+          const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+          if (user) {
+            const creds = await db.prepare('SELECT credential_id FROM passkey_credentials WHERE user_id = ?').bind(user.id).all();
+            allowCredentials = (creds.results || []).map((r) => r.credential_id);
+          }
+        }
+        const options = await createAuthenticationOptions(rpId, allowCredentials);
+        return json(options);
+      } catch (e) {
+        if (/no such table: passkey_credentials/i.test(e?.message)) return json({ error: 'Passkeys not configured' }, 503);
+        throw e;
+      }
+    }
+
+    // POST /api/auth/passkey/login - verify assertion and return JWT
+    if (path === 'auth/passkey/login' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const response = body?.response;
+      const expectedChallenge = body?.expectedChallenge;
+      if (!response || !expectedChallenge) return json({ error: 'Missing response or challenge' }, 400);
+      const credentialId = response?.id;
+      if (!credentialId) return json({ error: 'Invalid response' }, 400);
+      try {
+        const credRow = await db.prepare('SELECT pc.*, u.disabled FROM passkey_credentials pc JOIN users u ON u.id = pc.user_id WHERE pc.credential_id = ?').bind(credentialId).first();
+        if (!credRow) return json({ error: 'Passkey not found' }, 401);
+        if (credRow.disabled) return json({ error: 'Account is disabled' }, 403);
+        const origin = getOrigin(request.url);
+        const rpId = getRpId(url.hostname);
+        const authInfo = await verifyAuthentication(
+          response,
+          expectedChallenge,
+          origin,
+          rpId,
+          { id: credRow.credential_id, publicKey: credRow.public_key, counter: credRow.counter }
+        );
+        if (!authInfo) return json({ error: 'Passkey verification failed' }, 401);
+        await db.prepare('UPDATE passkey_credentials SET counter = ? WHERE credential_id = ?').bind(authInfo.newCounter, credentialId).run();
+        const user = await db.prepare('SELECT id, username, email FROM users WHERE id = ?').bind(credRow.user_id).first();
+        if (!user) return json({ error: 'User not found' }, 401);
+        const secret = String(env.JWT_SECRET || '').trim();
+        if (!secret) return json({ error: 'Authentication not configured' }, 503);
+        const jwt = await signJwt({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, secret);
+        const displayName = user.username || user.email?.split('@')[0] || 'user';
+        return json({ success: true, user: { id: user.id, username: displayName }, token: jwt });
+      } catch (e) {
+        if (/no such table: passkey_credentials/i.test(e?.message)) return json({ error: 'Passkeys not configured' }, 503);
+        return json({ error: e?.message || 'Verification failed' }, 400);
+      }
     }
 
     // GET /api/auth/me

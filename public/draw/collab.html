@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="format-detection" content="telephone=no">
-  <title>Draw — Tchoff</title>
+  <title>Collaborative Draw — Tchoff</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/theme-loader.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -44,7 +44,8 @@
           <a href="/soundboard.html" role="menuitem">Soundboard</a>
           <a href="/dj.html" role="menuitem">DJ Table</a>
           <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
-          <a href="/draw/" role="menuitem" aria-current="page">Draw</a>
+          <a href="/draw/" role="menuitem">Draw</a>
+          <a href="/draw/collab.html" role="menuitem" aria-current="page">Collaborative Draw</a>
           <a href="/users.html" role="menuitem">Find Friends</a>
           <a href="/suggestions.html" role="menuitem">Suggestions</a>
           <a href="/plans.html" role="menuitem">Plans</a>
@@ -81,8 +82,8 @@
     <div class="draw-page-header">
       <div class="draw-header-links">
         <a href="/" class="draw-back-link">← Back to feed</a>
-        <a href="/draw/" class="draw-blank-link">Start blank</a>
-        <a href="/draw/collab.html" class="draw-blank-link" title="Draw with multiple users via fused cursor">🐭 Multi-user draw</a>
+        <a href="/draw/" class="draw-blank-link">Solo draw</a>
+        <a href="/draw/collab.html" class="draw-blank-link">Multi-user draw</a>
       </div>
       <p id="draw-status"></p>
     </div>
@@ -1455,6 +1456,8 @@
     <a href="/privacy.html">Privacy Policy</a>
   </footer>
 
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/draw/collab-config.js"></script>
   <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
   <script>
@@ -1463,6 +1466,7 @@
   </script>
   <script src="/draw/stickers.js"></script>
   <script src="/draw/draw-post.js"></script>
+  <script src="/draw/collab.js"></script>
 </body>
 </html>
 

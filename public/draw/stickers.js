@@ -1431,6 +1431,29 @@ function getDrawMergedBlob(scale = 1) {
 }
 if (typeof window !== 'undefined') window.getDrawMergedBlob = getDrawMergedBlob;
 
+// Replay a collaborative stroke (from another user)
+function replayCollabStroke(stroke) {
+  if (!stroke || !stroke.points || stroke.points.length < 1) return;
+  const ctx = getActiveContext();
+  ctx.save();
+  ctx.strokeStyle = stroke.color || '#000000';
+  ctx.lineWidth = stroke.size || 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+  ctx.beginPath();
+  ctx.moveTo(stroke.points[0][0], stroke.points[0][1]);
+  for (let i = 1; i < stroke.points.length; i++) {
+    ctx.lineTo(stroke.points[i][0], stroke.points[i][1]);
+  }
+  ctx.stroke();
+  ctx.restore();
+  renderCanvas();
+  updateLayersList();
+  if (typeof saveHistory === 'function') saveHistory();
+}
+if (typeof window !== 'undefined') window.replayCollabStroke = replayCollabStroke;
+
 // Clear button
 document.getElementById('clear-btn').addEventListener('click', () => {
     initAudio();

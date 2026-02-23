@@ -46,6 +46,7 @@
           <a href="/dj.html" role="menuitem">DJ Table</a>
           <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
           <a href="/draw/" role="menuitem">Draw</a>
+          <a href="/draw/collab.html" role="menuitem">Collaborative Draw</a>
           <a href="/users.html" role="menuitem">Find Friends</a>
           <a href="/suggestions.html" role="menuitem">Suggestions</a>
           <a href="/plans.html" role="menuitem">Plans</a>
@@ -131,6 +132,7 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="btn-edit-username">Change username</button>
           <button type="button" class="btn btn-ghost" id="btn-change-password">Change password</button>
+          <button type="button" class="btn btn-ghost" id="btn-add-passkey">🔐 Add passkey</button>
           <button type="button" class="btn btn-ghost" id="btn-logout">Log out</button>
         </div>
         <div class="disable-account-section" id="disable-account-section" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border)">
@@ -160,11 +162,14 @@
         <button type="button" class="auth-tab" data-tab="signup">Sign up</button>
       </div>
       <form id="auth-login-form" class="auth-form active">
-        <input type="email" id="auth-email" placeholder="Email" required>
-        <input type="password" id="auth-password" placeholder="Password" minlength="6" required>
+        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email">
+        <input type="password" id="auth-password" placeholder="Password" minlength="6" required autocomplete="current-password">
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="cancel-auth">Cancel</button>
           <button type="submit" class="btn btn-primary">Log in</button>
+        </div>
+        <div class="auth-passkey-row">
+          <button type="button" class="btn btn-ghost" id="btn-login-passkey" title="Sign in with passkey (fingerprint, Face ID)">🔐 Sign in with passkey</button>
         </div>
       </form>
       <form id="auth-signup-form" class="auth-form">
@@ -297,6 +302,7 @@
 
   <script src="https://unpkg.com/exifr@7/dist/full.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <script src="https://unpkg.com/@simplewebauthn/browser@13.2.2/dist/bundle/index.umd.min.js"></script>
   <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
   <script src="/app-common.js"></script>
