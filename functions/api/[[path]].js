@@ -425,20 +425,27 @@ export async function onRequest(context) {
       const feedWhere = buildVisibilityWhere(viewerId);
       const feedParams = feedWhere.params.concat(per, offset);
       let countRow, rows;
-      const feedCols = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
-      const feedColsNoSource = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
+      const feedCols = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
+      const feedColsNoSource = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
       try {
         countRow = await db.prepare(`SELECT COUNT(*) as c FROM (SELECT 1 FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100)`).bind(...feedWhere.params).first();
         rows = await db.prepare(
           `SELECT * FROM (SELECT ${feedCols} FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
         ).bind(...feedWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named source_code|no such column.*source_code/i.test(e?.message)) {
+        if (/no column named source_code_type|no such column.*source_code_type/i.test(e?.message)) {
           try {
             rows = await db.prepare(
               `SELECT * FROM (SELECT ${feedColsNoSource} FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
             ).bind(...feedWhere.params, per, offset).all();
-            (rows.results || []).forEach((r) => { r.sourceCode = null; });
+            (rows.results || []).forEach((r) => { r.sourceCodeType = null; });
+          } catch (e2) { throw e; }
+        } else if (/no column named source_code|no such column.*source_code/i.test(e?.message)) {
+          try {
+            rows = await db.prepare(
+              `SELECT * FROM (SELECT ${feedColsNoSource} FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
+            ).bind(...feedWhere.params, per, offset).all();
+            (rows.results || []).forEach((r) => { r.sourceCode = null; r.sourceCodeType = null; });
           } catch (e2) { throw e; }
         } else if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
@@ -522,21 +529,30 @@ export async function onRequest(context) {
       try {
         countRow = await db.prepare(`SELECT COUNT(*) as c FROM images ${userImagesWhere.sql}`).bind(...userImagesWhere.params).first();
         rows = await db.prepare(
-          `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
+          `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
         ).bind(...userImagesWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named visibility|no column named disabled|no such column.*disabled/i.test(e?.message)) {
+        if (/no column named source_code_type|no such column.*source_code_type/i.test(e?.message)) {
+          try {
+            rows = await db.prepare(
+              `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
+            ).bind(...userImagesWhere.params, per, offset).all();
+            (rows.results || []).forEach((r) => { r.sourceCodeType = null; });
+          } catch (e2) { throw e; }
+        } else if (/no column named visibility|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
             countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0)').bind(id).first();
             rows = await db.prepare(
               'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT ? OFFSET ?'
             ).bind(id, per, offset).all();
+            (rows.results || []).forEach((r) => { r.sourceCodeType = null; });
           } catch (e2) {
             if (/no column named disabled|no such column.*disabled/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
               rows = await db.prepare(
                 'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
               ).bind(id, per, offset).all();
+              (rows.results || []).forEach((r) => { r.sourceCodeType = null; });
             } else throw e2;
           }
         } else throw e;
@@ -913,6 +929,7 @@ export async function onRequest(context) {
       const HEX64 = /^[a-f0-9]{64}$/i;
       let imageHash, babelHash, babeliaPng, exif, caption, username, width, height, visibility = 'public';
       let sourceCode = null;
+      let sourceCodeType = null;
       let imageFile = null;
 
       const contentType = request.headers.get('content-type') || '';
@@ -927,6 +944,7 @@ export async function onRequest(context) {
         exif = form.get('exif')?.toString?.();
         caption = form.get('caption')?.toString?.();
         sourceCode = form.get('sourceCode')?.toString?.();
+        sourceCodeType = form.get('sourceCodeType')?.toString?.();
         username = form.get('username')?.toString?.();
         width = form.get('width')?.toString?.() || null;
         height = form.get('height')?.toString?.() || null;
@@ -940,6 +958,7 @@ export async function onRequest(context) {
         exif = b.exif;
         caption = b.caption;
         sourceCode = b.sourceCode;
+        sourceCodeType = b.sourceCodeType;
         username = b.username;
         width = b.width;
         height = b.height;
@@ -1020,15 +1039,21 @@ export async function onRequest(context) {
         return t.length > 4096 ? t.slice(0, 4096) : t;
       };
       const safeSourceCode = sourceCode ? sanitizeSourceCode(sourceCode) : null;
+      const validCodeTypes = ['javascript', 'python', 'html', 'css', 'bash', 'json', 'sql', 'typescript', 'plain'];
+      const safeCodeType = sourceCodeType && validCodeTypes.includes(sourceCodeType) ? sourceCodeType : (safeSourceCode ? 'plain' : null);
 
       const insertUsername = displayName;
       const vis = (visibility === 'friends') ? 'friends' : 'public';
       try {
         await db.prepare(
-          'INSERT INTO images (id, num, image_hash, babel_hash, caption, source_code, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).bind(id, num, imageHash, babelHash, safeCaption || '', safeSourceCode || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
+          'INSERT INTO images (id, num, image_hash, babel_hash, caption, source_code, source_code_type, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(id, num, imageHash, babelHash, safeCaption || '', safeSourceCode || '', safeCodeType || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
       } catch (e) {
-        if (/no column named source_code/i.test(e?.message)) {
+        if (/no column named source_code_type/i.test(e?.message)) {
+          await db.prepare(
+            'INSERT INTO images (id, num, image_hash, babel_hash, caption, source_code, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, num, imageHash, babelHash, safeCaption || '', safeSourceCode || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
+        } else if (/no column named source_code/i.test(e?.message)) {
           await db.prepare(
             'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
           ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
@@ -1065,6 +1090,7 @@ export async function onRequest(context) {
         babeliaLocation: babelHash,
         caption: safeCaption || '',
         sourceCode: safeSourceCode || null,
+        sourceCodeType: safeCodeType || null,
         username: insertUsername,
         createdAt,
         width: widthInt,
@@ -1111,7 +1137,7 @@ export async function onRequest(context) {
         if (payload?.sub) viewerId = payload.sub;
       }
       const post = await db.prepare(
-        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(num).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       try {
@@ -1132,7 +1158,7 @@ export async function onRequest(context) {
       const id = path.slice('post/'.length).replace(/[^a-f0-9]/gi, '');
       if (!id || id.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
       const post = await db.prepare(
-        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(id, id).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       const babelHash = post.babeliaLocation || post.hash;
@@ -1778,12 +1804,12 @@ export async function onRequest(context) {
       let post;
       try {
         post = await db.prepare(
-          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
+          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
         ).bind(id, id).first();
       } catch (e) {
         if (/no column named user_id|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           post = await db.prepare(
-            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
+            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, source_code_type as sourceCodeType, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
           ).bind(id, id).first();
         } else throw e;
       }

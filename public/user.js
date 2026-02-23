@@ -287,7 +287,7 @@ function renderGrid(grid, posts) {
       </div>
       <div class="post-info">
         ${post.caption ? `<div class="post-caption">${escapeHtml(post.caption)}</div>` : ''}
-        ${(post.sourceCode || post.source_code) ? (typeof renderCodeComic === 'function' ? renderCodeComic(post.sourceCode || post.source_code, true) : '') : ''}
+        ${(post.sourceCode || post.source_code) ? (typeof renderCodeComic === 'function' ? renderCodeComic(post.sourceCode || post.source_code, true, post.sourceCodeType || post.source_code_type) : '') : ''}
         <div class="post-stats">👍 ${post.likeCount ?? 0} · 💬 ${post.commentCount ?? 0}</div>
         <div class="post-hash">#${post.num || '?'}</div>
       </div>

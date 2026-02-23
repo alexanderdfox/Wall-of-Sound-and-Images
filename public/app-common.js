@@ -7,11 +7,22 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function renderCodeComic(code, compact = false) {
+function renderCodeComic(code, compact = false, codeType = null) {
   if (!code || typeof code !== 'string') return '';
-  const escaped = escapeHtml(code.trim());
+  const raw = code.trim();
+  let inner = escapeHtml(raw);
+  const lang = (codeType || '').toLowerCase();
+  const langLabel = lang && lang !== 'plain' ? lang.toUpperCase().slice(0, 6) : 'CODE';
+  if (lang && lang !== 'plain' && typeof hljs !== 'undefined') {
+    const hljsLang = lang === 'html' ? 'xml' : lang;
+    try {
+      const result = hljs.highlight(raw, { language: hljsLang, ignoreIllegals: true });
+      inner = result.value;
+    } catch (_) { /* fallback to escaped */ }
+  }
   const cls = compact ? 'code-comic compact' : 'code-comic';
-  return `<div class="${cls}">${escaped}</div>`;
+  const badge = lang && lang !== 'plain' ? langLabel : 'CODE';
+  return `<div class="${cls}"><span class="code-comic-badge">${escapeHtml(badge)}</span><code class="hljs">${inner}</code></div>`;
 }
 
 function renderCommentText(text) {
@@ -47,7 +58,7 @@ async function openPost(post, postModal, lightboxBody) {
     <div class="lightbox-meta">
       ${userEl}
       ${post.caption ? `<p>${escapeHtml(post.caption)}</p>` : ''}
-      ${(post.sourceCode || post.source_code) ? renderCodeComic(post.sourceCode || post.source_code) : ''}
+      ${(post.sourceCode || post.source_code) ? renderCodeComic(post.sourceCode || post.source_code, false, post.sourceCodeType || post.source_code_type) : ''}
       <div class="lightbox-actions">
         <button type="button" class="btn-like ${likedByMe ? 'liked' : ''}" data-num="${post.num}" aria-label="Like">
           👍 <span class="like-count">${likeCount}</span>

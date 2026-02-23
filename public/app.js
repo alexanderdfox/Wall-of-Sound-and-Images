@@ -76,7 +76,7 @@ function renderFeed(posts) {
       <div class="post-info">
         <div class="post-user-wrap">${userLink(post)}</div>
         ${post.caption ? `<div class="post-caption">${escapeHtml(post.caption)}</div>` : ''}
-        ${(post.sourceCode || post.source_code) ? (typeof renderCodeComic === 'function' ? renderCodeComic(post.sourceCode || post.source_code, true) : '') : ''}
+        ${(post.sourceCode || post.source_code) ? (typeof renderCodeComic === 'function' ? renderCodeComic(post.sourceCode || post.source_code, true, post.sourceCodeType || post.source_code_type) : '') : ''}
         <div class="post-stats">👍 ${post.likeCount ?? 0} · 💬 ${post.commentCount ?? 0}</div>
         <div class="post-hash" title="${post.babeliaLocation || post.hash || ''}">#${post.num || '?'} · ${(post.babeliaLocation || post.hash || '').slice(0, 12)}…</div>
         ${(post.width && post.height) ? `<div class="post-meta-small">${post.width}×${post.height}</div>` : ''}
@@ -408,6 +408,8 @@ function resetUploadForm() {
   captionInput.value = '';
   const sourceCodeInput = document.getElementById('source-code-input');
   if (sourceCodeInput) { sourceCodeInput.value = ''; updateSourceCodeCount(); }
+  const sourceCodeType = document.getElementById('source-code-type');
+  if (sourceCodeType) sourceCodeType.value = 'plain';
   usernameInput.value = 'anonymous';
   const visSelect = document.getElementById('visibility-select');
   if (visSelect) visSelect.value = 'public';
@@ -513,7 +515,11 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     form.append('height', String(height || ''));
     form.append('caption', captionInput.value || '');
     const sc = document.getElementById('source-code-input')?.value?.trim();
-    if (sc) form.append('sourceCode', sc);
+    if (sc) {
+      form.append('sourceCode', sc);
+      const codeType = document.getElementById('source-code-type')?.value || 'plain';
+      form.append('sourceCodeType', codeType);
+    }
     form.append('username', usernameInput.value || 'anonymous');
     form.append('visibility', document.getElementById('visibility-select')?.value || 'public');
 

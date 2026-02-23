@@ -315,8 +315,7 @@ body {
   overflow-x: auto;
   position: relative;
 }
-.code-comic::before {
-  content: 'CODE';
+.code-comic .code-comic-badge {
   position: absolute;
   top: -8px;
   left: 10px;
@@ -335,7 +334,9 @@ body {
   max-height: 4.5em;
   overflow: hidden;
 }
-.code-comic.compact::before { font-size: 0.55rem; padding: 1px 4px; }
+.code-comic.compact .code-comic-badge { font-size: 0.55rem; padding: 1px 4px; }
+.code-comic code.hljs { background: transparent; padding: 0; }
+.code-comic code { display: block; overflow-x: auto; }
 
 .source-code-wrap { margin-bottom: 16px; }
 .source-code-wrap label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; }
