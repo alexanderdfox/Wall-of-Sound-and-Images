@@ -118,11 +118,18 @@
       </section>
       <section class="backend-section">
         <h2>Grant Subscription</h2>
-        <p class="report-meta" style="margin-bottom:12px">Grant the Unlimited Copyrighted Art plan to a user. Use user ID or username (e.g. @johndoe). Months: 0 = lifetime.</p>
+        <p class="report-meta" style="margin-bottom:12px">Grant a plan to a user. Use user ID or username (e.g. @johndoe). Months: 0 = lifetime.</p>
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
           <div>
             <label for="sub-user-id" style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">User ID or username</label>
             <input type="text" id="sub-user-id" placeholder="@username or UUID" style="padding:8px 12px;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+          </div>
+          <div>
+            <label for="sub-plan" style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">Plan</label>
+            <select id="sub-plan" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+              <option value="unlimited_copyrighted_art">Unlimited Copyrighted Art</option>
+              <option value="sell_your_art">Sell Your Art</option>
+            </select>
           </div>
           <div>
             <label for="sub-months" style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">Months (0=lifetime)</label>
@@ -178,7 +185,7 @@
           const res = await fetch(API + '/admin/subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-            body: JSON.stringify({ userId: userId.replace(/^@/, ''), plan: 'unlimited_copyrighted_art', months }),
+            body: JSON.stringify({ userId: userId.replace(/^@/, ''), plan: document.getElementById('sub-plan')?.value || 'unlimited_copyrighted_art', months }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Failed');

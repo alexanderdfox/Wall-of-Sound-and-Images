@@ -78,7 +78,7 @@
   <main class="plans-page">
     <a href="/" class="back-link">← Back to feed</a>
     <h1>Subscription Plans</h1>
-    <p class="subtitle">Upgrade for expanded access to licensed and copyrighted artwork.</p>
+    <p class="subtitle">Upgrade for expanded access—view licensed art, or sell your own on Tchoff.</p>
 
     <div id="subscription-status" class="plan-status" style="display:none"></div>
 
@@ -91,6 +91,17 @@
         <li>No daily or monthly caps</li>
       </ul>
       <a href="/contact.html?subject=Unlimited%20Copyrighted%20Art%20subscription" class="btn btn-primary">Contact to subscribe</a>
+    </div>
+
+    <div class="plan-card featured">
+      <h2>Sell Your Art</h2>
+      <p class="plan-desc">The right to sell your art on this website. List your work, set your prices, and reach buyers through Tchoff.</p>
+      <ul>
+        <li>Right to offer your artwork for sale on Tchoff</li>
+        <li>Set your own prices and listing details</li>
+        <li>Connect with collectors and buyers</li>
+      </ul>
+      <a href="/contact.html?subject=Sell%20Your%20Art%20plan" class="btn btn-primary">Contact to subscribe</a>
     </div>
 
     <p>For pricing and availability, <a href="/contact.html">contact us</a>. Current subscribers can manage their plan from their account.</p>
@@ -109,7 +120,9 @@
         const data = res.ok ? await res.json() : {};
         const el = document.getElementById('subscription-status');
         if (data.active && data.plan) {
-          el.textContent = '✓ You have an active subscription: ' + data.plan + (data.expiresAt ? ' (expires ' + new Date(data.expiresAt).toLocaleDateString() + ')' : '');
+          const planNames = { unlimited_copyrighted_art: 'Unlimited Copyrighted Art', sell_your_art: 'Sell Your Art' };
+          const planLabel = planNames[data.plan] || data.plan;
+          el.textContent = '✓ You have an active subscription: ' + planLabel + (data.expiresAt ? ' (expires ' + new Date(data.expiresAt).toLocaleDateString() + ')' : '');
           el.style.display = 'block';
         }
       } catch (_) {}
