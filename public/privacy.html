@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme-loader.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .legal-page { max-width: 720px; margin: 0 auto; padding: 40px 24px 60px; }
+    .legal-page h1 { font-size: 1.75rem; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .legal-page .updated { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 32px; }
+    .legal-page h2 { font-size: 1.1rem; margin-top: 28px; margin-bottom: 10px; }
+    .legal-page p, .legal-page li { margin-bottom: 12px; line-height: 1.65; color: var(--text); }
+    .legal-page ul { margin-left: 1.25em; padding-left: 0; }
+    .legal-page a { color: var(--accent); }
+    .legal-page a:hover { text-decoration: underline; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Navigate">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem">Themes</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="legal-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: February 2025</p>
+
+    <h2>1. Introduction</h2>
+    <p>Tchoff (“we,” “our,” or “the Service”) respects your privacy. This policy describes what data we collect, how we use it, and your rights. By using the Service, you agree to this policy and our <a href="/terms.html">Terms of Use</a>.</p>
+
+    <h2>2. Data We Collect</h2>
+    <p><strong>Account data:</strong> When you sign up, we collect email, a hashed password (we never store plaintext passwords), and username. We use this to create and secure your account.</p>
+    <p><strong>Content:</strong> Images, audio, captions, and metadata you upload. We store and serve this to operate the Service.</p>
+    <p><strong>Reports:</strong> When you report content, we store the report details, your user ID, and content identifiers for review.</p>
+    <p><strong>Usage:</strong> We may log IP addresses, request metadata, and error logs for security, abuse prevention, and debugging. Data is retained only as necessary.</p>
+
+    <h2>3. How We Use Data</h2>
+    <p>We use your data to: provide and improve the Service; authenticate you; store and display your content; process reports; enforce our Terms; comply with legal obligations; and protect security. We do not sell your personal data.</p>
+
+    <h2>4. Security</h2>
+    <p>Passwords are hashed using PBKDF2-HMAC-SHA256 with industry-standard iterations. Authentication uses JWTs. We use HTTPS and secure hosting (Cloudflare). We implement access controls and follow security best practices appropriate to the Service.</p>
+
+    <h2>5. Data Retention</h2>
+    <p>We retain account and content data for as long as your account exists. Reports are retained for compliance and review. Logs are retained for a limited period. You may request deletion of your account and associated data.</p>
+
+    <h2>6. Your Rights</h2>
+    <p>You may: access your account data; update your username; delete your account; and request information about the data we hold. Residents of the EU/EEA and California may have additional rights under GDPR and CCPA. Contact us to exercise these rights.</p>
+
+    <h2>7. Cookies and Storage</h2>
+    <p>We use localStorage to store your session token for signed-in users. We do not use third-party advertising or tracking cookies.</p>
+
+    <h2>8. Third Parties</h2>
+    <p>We use Cloudflare for hosting and D1 for database storage. They process data on our behalf. We do not share your data with advertisers or other third parties for marketing.</p>
+
+    <h2>9. Children</h2>
+    <p>The Service is not intended for users under 13. We do not knowingly collect data from children under 13.</p>
+
+    <h2>10. Changes</h2>
+    <p>We may update this policy. Continued use after changes constitutes acceptance. Check the “Last updated” date for the current version.</p>
+
+    <h2>11. Contact</h2>
+    <p>For privacy questions or to exercise your rights, contact us via the contact information on the Service.</p>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+</body>
+</html>

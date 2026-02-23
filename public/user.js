@@ -196,6 +196,7 @@ async function openSoundModal(sound, profileUsername) {
           👍 <span class="like-count">${sound.likeCount ?? 0}</span>
         </button>
         <span class="lightbox-comment-count"><span class="comment-count">${sound.commentCount ?? 0}</span> comment(s)</span>
+        <button type="button" class="btn-ghost btn-report" data-type="sound" data-num="${sound.num || ''}" data-hash="${escapeHtml(sound.hash || '')}" title="Report">🚩 Report</button>
       </div>
     </div>
     <div class="lightbox-comments" id="sound-comments">
@@ -264,6 +265,10 @@ async function openSoundModal(sound, profileUsername) {
   soundModalBody.querySelector('.btn-sound-comment-submit')?.addEventListener('click', submitSoundComment);
   soundModalBody.querySelector('#sound-comment-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); submitSoundComment(); }
+  });
+
+  soundModalBody.querySelector('.btn-report')?.addEventListener('click', () => {
+    if (typeof openReportModal === 'function') openReportModal('sound', sound.num, sound.hash);
   });
 }
 

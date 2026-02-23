@@ -45,6 +45,7 @@ async function openPost(post, postModal, lightboxBody) {
           👍 <span class="like-count">${likeCount}</span>
         </button>
         <span class="lightbox-comment-count">${commentCount} comment${commentCount !== 1 ? 's' : ''}</span>
+        <button type="button" class="btn-ghost btn-report" data-type="image" data-num="${post.num || ''}" data-hash="${escapeHtml((post.babeliaLocation || post.hash) || '')}" title="Report">🚩 Report</button>
       </div>
       <div class="lightbox-hash">#${post.num || '?'} · ${(post.babeliaLocation || post.hash || '').slice(0, 16)}…</div>
       ${(post.width && post.height) ? `<div class="lightbox-meta-extra">Original: ${post.width}×${post.height} px</div>` : ''}
@@ -193,4 +194,95 @@ async function openPost(post, postModal, lightboxBody) {
 
     document.addEventListener('click', closeAllDrops);
   }
+
+  body.querySelector('.btn-report')?.addEventListener('click', () => {
+    if (typeof openReportModal === 'function') {
+      openReportModal('image', post.num, post.babeliaLocation || post.hash);
+    }
+  });
+}
+
+function openReportModal(contentType, num, hash) {
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
+  if (!authToken) {
+    alert('Sign in to report content.');
+    if (window.location.pathname === '/') window.location.hash = 'auth';
+    return;
+  }
+
+  let el = document.getElementById('report-modal');
+  if (!el) {
+    el = document.createElement('dialog');
+    el.id = 'report-modal';
+    el.className = 'modal';
+    el.innerHTML = `
+      <div class="modal-content">
+        <button type="button" class="btn-close" id="report-modal-close" aria-label="Close">×</button>
+        <h2>Report Content</h2>
+        <p class="modal-hint">Report images or sounds that violate copyright, contain illegal content, or otherwise break our terms.</p>
+        <form id="report-form">
+          <input type="hidden" id="report-type" name="type">
+          <input type="hidden" id="report-num" name="num">
+          <input type="hidden" id="report-hash" name="hash">
+          <div class="visibility-wrap">
+            <label for="report-reason">Reason</label>
+            <select id="report-reason" required>
+              <option value="">Select…</option>
+              <option value="copyright">Copyright infringement</option>
+              <option value="illegal">Illegal content</option>
+              <option value="other">Other violation</option>
+            </select>
+          </div>
+          <textarea id="report-details" placeholder="Additional details (optional)" rows="3" maxlength="1000" style="width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font-sans);margin-bottom:12px;resize:vertical"></textarea>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="report-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary">Submit Report</button>
+          </div>
+        </form>
+      </div>`;
+    document.body.appendChild(el);
+    el.querySelector('#report-modal-close')?.addEventListener('click', () => el.close());
+    el.querySelector('#report-cancel')?.addEventListener('click', () => el.close());
+    el.querySelector('#report-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const typeInput = document.getElementById('report-type');
+      const numInput = document.getElementById('report-num');
+      const hashInput = document.getElementById('report-hash');
+      const reason = document.getElementById('report-reason')?.value;
+      const details = document.getElementById('report-details')?.value?.trim() || '';
+      if (!reason || !typeInput) return;
+      const btn = el.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+      try {
+        const res = await fetch(API + '/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+          body: JSON.stringify({
+            type: typeInput.value,
+            num: numInput?.value || null,
+            hash: hashInput?.value || null,
+            reason,
+            details,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          alert('Report submitted. We will review it.');
+          el.close();
+        } else {
+          alert(data.error || 'Failed to submit report.');
+        }
+      } catch (err) {
+        alert('Failed to submit report.');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit Report'; }
+    });
+  }
+
+  document.getElementById('report-type').value = contentType;
+  document.getElementById('report-num').value = num || '';
+  document.getElementById('report-hash').value = hash || '';
+  document.getElementById('report-reason').value = '';
+  document.getElementById('report-details').value = '';
+  el.showModal();
 }

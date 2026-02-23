@@ -1016,6 +1016,38 @@ export async function onRequest(context) {
       return json({ success: true });
     }
 
+    // POST /api/report - report image or sound (copyright, illegal, other)
+    if (path === 'report' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required to report' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required to report' }, 401);
+
+      const body = await request.json().catch(() => ({}));
+      const contentType = (body.type || body.contentType || '').toString();
+      const contentNum = (body.num !== undefined && body.num !== null && body.num !== '') ? parseInt(body.num, 10) : null;
+      const contentHash = (body.hash || '').toString().replace(/[^a-f0-9]/gi, '').slice(0, 64) || null;
+      const reason = (body.reason || '').toString();
+      const details = (body.details || '').toString().slice(0, 1000);
+
+      if (contentType !== 'image' && contentType !== 'sound') return json({ error: 'Invalid content type' }, 400);
+      if (!contentNum && !contentHash) return json({ error: 'Num or hash required' }, 400);
+      const validReasons = ['copyright', 'illegal', 'other'];
+      if (!validReasons.includes(reason)) return json({ error: 'Invalid reason' }, 400);
+
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      try {
+        await db.prepare(
+          'INSERT INTO reports (id, reporter_id, content_type, content_num, content_hash, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(id, payload.sub, contentType, contentNum || null, contentHash || null, reason, details || null, createdAt).run();
+      } catch (e) {
+        if (/no such table: reports/i.test(e?.message)) return json({ error: 'Reports not configured' }, 500);
+        throw e;
+      }
+      return json({ success: true, message: 'Report submitted. We will review it.' });
+    }
+
     // GET /api/exists/:id
     if (path.startsWith('exists/') && method === 'GET') {
       const id = path.slice('exists/'.length).replace(/[^a-f0-9]/gi, '');

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Maker — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme-loader.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .movie-page { max-width: 1600px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; min-height: calc(100vh - 80px); }
+    .movie-page h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .movie-page .subtitle { color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 12px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+    .movie-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; flex: 1; min-height: 0; }
+    @media (max-width: 900px) { .movie-layout { grid-template-columns: 1fr; } }
+    .movie-library {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .movie-library-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; border-bottom: 1px solid var(--border); }
+    .movie-library-tab {
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .movie-library-tab:hover { color: var(--text); }
+    .movie-library-tab.active { background: var(--accent-muted); border-color: var(--accent); color: var(--accent); }
+    .movie-library-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .movie-library-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .movie-library-item {
+      aspect-ratio: 1;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s, transform 0.15s;
+      background: var(--bg);
+    }
+    .movie-library-item:hover { border-color: var(--accent); transform: scale(1.02); }
+    .movie-library-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .movie-library-item.sound {
+      aspect-ratio: auto;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+    .movie-library-item.sound span { font-size: 0.75rem; color: var(--text-muted); text-align: center; line-height: 1.3; }
+    .movie-main { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+    .movie-preview-wrap {
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      max-height: 360px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .movie-preview-wrap canvas { width: 100%; height: 100%; object-fit: contain; }
+    .movie-preview-placeholder { color: var(--text-muted); font-size: 0.9rem; }
+    .movie-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .movie-controls button {
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .movie-controls button:hover { background: var(--border); }
+    .movie-controls button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .movie-controls button.primary:hover { background: var(--accent-hover); }
+    .movie-time { font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted); }
+    .movie-timeline {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+    }
+    .movie-timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .movie-timeline-duration { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); }
+    .movie-track { margin-bottom: 12px; }
+    .movie-track:last-child { margin-bottom: 0; }
+    .movie-track-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+    .movie-track-row {
+      display: flex;
+      align-items: center;
+      min-height: 48px;
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      padding: 6px;
+      position: relative;
+      min-width: 200px;
+    }
+    .movie-clip {
+      height: 36px;
+      min-width: 40px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .movie-clip.image { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .movie-clip.sound { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .movie-clip .remove { margin-left: 4px; opacity: 0.7; font-size: 0.9em; }
+    .movie-clip:hover .remove { opacity: 1; }
+    .movie-playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--danger);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .movie-empty-hint { color: var(--text-muted); font-size: 0.85rem; padding: 20px; text-align: center; }
+    .movie-export-status { font-size: 0.85rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Navigate">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem" aria-current="page">Movie Maker</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem">Themes</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="movie-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <div>
+      <h1>Movie Maker</h1>
+      <p class="subtitle">Combine images and sounds from the feed or your uploads. Click items to add to the timeline, then preview and export.</p>
+    </div>
+
+    <div class="movie-layout">
+      <aside class="movie-library">
+        <div class="movie-library-tabs">
+          <button type="button" class="movie-library-tab active" data-source="feed" data-type="image">Public Images</button>
+          <button type="button" class="movie-library-tab" data-source="me" data-type="image">My Images</button>
+          <button type="button" class="movie-library-tab" data-source="sounds" data-type="sound">Public Sounds</button>
+          <button type="button" class="movie-library-tab" data-source="me-sounds" data-type="sound">My Sounds</button>
+        </div>
+        <div class="movie-library-content">
+          <div id="library-grid" class="movie-library-grid"></div>
+          <div id="library-loading" class="movie-empty-hint" style="display:none">Loading…</div>
+          <div id="library-signin" class="movie-empty-hint" style="display:none">Sign in to see your images and sounds.</div>
+        </div>
+      </aside>
+
+      <div class="movie-main">
+        <div class="movie-preview-wrap">
+          <canvas id="preview-canvas" width="1280" height="720" style="display:none"></canvas>
+          <div id="preview-placeholder" class="movie-preview-placeholder">Add images to the timeline</div>
+        </div>
+
+        <div class="movie-controls">
+          <button type="button" id="btn-play" class="primary">Play</button>
+          <button type="button" id="btn-pause" disabled>Pause</button>
+          <button type="button" id="btn-export" class="primary">Download MP4 / Video</button>
+          <span id="time-display" class="movie-time">0:00 / 0:00</span>
+          <span id="export-status" class="movie-export-status"></span>
+        </div>
+
+        <div class="movie-timeline">
+          <div class="movie-timeline-header">
+            <span class="movie-track-label">Timeline</span>
+            <span id="timeline-duration" class="movie-timeline-duration">0s</span>
+          </div>
+          <div class="movie-track">
+            <div class="movie-track-label">Images</div>
+            <div id="image-track" class="movie-track-row">
+              <span class="movie-empty-hint" style="padding:8px 0;margin:0">Click images from the library to add</span>
+            </div>
+          </div>
+          <div class="movie-track">
+            <div class="movie-track-label">Sounds</div>
+            <div id="sound-track" class="movie-track-row">
+              <span class="movie-empty-hint" style="padding:8px 0;margin:0">Click sounds from the library to add</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+  <script src="/movie-maker.js"></script>
+</body>
+</html>

@@ -120,6 +120,7 @@
           <a href="/sound.html" role="menuitem" aria-current="page">Wall of Sound</a>
           <a href="/soundboard.html" role="menuitem">Soundboard</a>
           <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
           <a href="/hashes.html" role="menuitem">Image Hashes</a>
           <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
           <a href="/themes.html" role="menuitem">Themes</a>
@@ -127,6 +128,8 @@
           <a href="/#upload-audio" role="menuitem">Upload Audio</a>
           <a href="/#hash" role="menuitem">View by Hash</a>
           <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
         </div>
       </div>
     </nav>
@@ -154,6 +157,9 @@
     <div class="sound-meta" id="sound-meta">
       <div class="location" id="location-display">—</div>
       <div class="db-status" id="sound-db-status"></div>
+      <div id="sound-report-wrap" style="display:none; margin-top:10px">
+        <button type="button" class="btn btn-ghost btn-report-sound" style="font-size:0.85rem; padding:6px 12px">🚩 Report this sound</button>
+      </div>
       <p class="meta-note">30s mono at 8kHz. Uploaded clips replace generated sounds at that location — same as Babel Library for images.</p>
       <p style="margin-top:12px"><a href="/dj.html">Mix sounds in the DJ Table →</a></p>
     </div>
@@ -166,6 +172,7 @@
 
   <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
+  <script src="/app-common.js"></script>
   <script>
     let currentLocation = null;
     let currentUrl = null;
@@ -224,6 +231,18 @@
         : 'Not in database — undiscovered location';
 
       if (inDb) metaEl.classList.add('in-db');
+
+      const reportWrap = document.getElementById('sound-report-wrap');
+      if (reportWrap) {
+        reportWrap.style.display = inDb ? 'block' : 'none';
+        const reportBtn = reportWrap.querySelector('.btn-report-sound');
+        if (reportBtn) {
+          reportBtn.replaceWith(reportBtn.cloneNode(true));
+          reportWrap.querySelector('.btn-report-sound').onclick = () => {
+            if (typeof openReportModal === 'function') openReportModal('sound', existsData?.sound?.num ?? null, loc);
+          };
+        }
+      }
 
       // All 64-char hashes are in the library: /s/:hash serves from KV (uploaded) or generates 30s mono 8kHz
       const src = `/s/${loc}`;

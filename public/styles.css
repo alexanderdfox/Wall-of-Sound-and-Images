@@ -156,6 +156,18 @@ body {
 
 .feed-grid:not(:empty) + .empty-state { display: none; }
 
+/* Footer */
+.site-footer {
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+.site-footer a { color: var(--text-muted); text-decoration: none; }
+.site-footer a:hover { color: var(--accent); }
+.footer-sep { margin: 0 8px; opacity: 0.6; }
+
 .empty-state {
   text-align: center;
   padding: 48px 20px;
