@@ -1,7 +1,7 @@
 // Auth utilities for Cloudflare Workers (Web Crypto only, no deps)
-// Password hashing: PBKDF2-HMAC-SHA256 with 600k iterations (OWASP 2023 minimum)
+// Password hashing: PBKDF2-HMAC-SHA256 (Cloudflare Workers limit: 100k max)
 
-const PBKDF2_ITERATIONS = 600000;
+const PBKDF2_ITERATIONS = 100000;
 const SALT_LEN = 16;
 const HASH_LEN = 32;
 
