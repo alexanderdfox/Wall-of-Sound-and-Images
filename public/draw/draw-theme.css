@@ -1,0 +1,382 @@
+/**
+ * Draw page theme overrides — uses Tchoff CSS variables for consistent theming
+ */
+.draw-stickers-container .main-content {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+.draw-stickers-container .tool-section {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .tool-section:hover {
+  background: color-mix(in srgb, var(--bg) 95%, var(--border)) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .tool-section h3,
+.draw-stickers-container .section-header,
+.draw-stickers-container .section-header span {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .section-header:hover {
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .section-collapse-btn {
+  color: var(--accent) !important;
+}
+
+.draw-stickers-container .section-collapse-btn:hover {
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .tool-btn,
+.draw-stickers-container .effect-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .tool-btn:hover,
+.draw-stickers-container .effect-btn:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.draw-stickers-container .tool-btn.active,
+.draw-stickers-container .effect-btn.active {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .tool-btn::after {
+  background: var(--accent-muted) !important;
+  color: var(--accent) !important;
+}
+
+.draw-stickers-container .tool-btn:hover::after {
+  background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+.draw-stickers-container .tool-btn.active::after {
+  background: color-mix(in srgb, var(--bg) 30%, transparent) !important;
+  color: var(--bg) !important;
+}
+
+.draw-stickers-container .action-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .action-btn:hover:not(:disabled) {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .color-wheel-container {
+  background: var(--accent-muted) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+.draw-stickers-container .color-wheel-container label {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container #color-picker {
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container #color-picker:hover,
+.draw-stickers-container #color-picker:focus {
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .current-color-display {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container #color-hex {
+  color: var(--accent) !important;
+}
+
+.draw-stickers-container #brush-size {
+  background: linear-gradient(to right, var(--accent), var(--accent-hover, var(--accent))) !important;
+}
+
+.draw-stickers-container #brush-size::-webkit-slider-thumb {
+  background: var(--bg-card) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container #brush-size::-moz-range-thumb {
+  background: var(--bg-card) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container #size-display {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .zoom-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .zoom-btn:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container #zoom-display {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container select {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container select:focus {
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .pattern-btn {
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .pattern-btn:hover {
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .pattern-btn.active {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.draw-stickers-container #secondary-color {
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .font-preview {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .case-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .case-btn.active {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .emoji-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .emoji-btn:hover,
+.draw-stickers-container .emoji-btn.active {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .save-section label {
+  color: var(--text-muted) !important;
+}
+
+.draw-stickers-container .save-btn {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .save-btn:hover {
+  background: var(--accent-hover, var(--accent)) !important;
+}
+
+.draw-stickers-container .clear-btn {
+  background: var(--danger) !important;
+  color: white !important;
+  border-color: var(--danger) !important;
+}
+
+.draw-stickers-container .help-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .help-btn:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .sidebar-toggle-btn {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+}
+
+.draw-stickers-container .sidebar-toggle-btn:hover {
+  background: var(--accent-hover, var(--accent)) !important;
+}
+
+/* Layer panel */
+.draw-stickers-container .layer-panel {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .layer-panel-header,
+.draw-stickers-container .layer-panel h3 {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .layer-control-btn {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .layer-control-btn:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.draw-stickers-container .layers-list {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .layer-item {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .layer-item:hover {
+  background: var(--accent-muted) !important;
+  border-color: var(--accent) !important;
+}
+
+.draw-stickers-container .layer-item.active {
+  background: var(--accent-muted) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.draw-stickers-container .layer-toggle-btn {
+  background: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .layer-toggle-btn:hover {
+  background: color-mix(in srgb, var(--accent) 50%, transparent) !important;
+}
+
+.draw-stickers-container .layer-opacity-control label,
+.draw-stickers-container #opacity-display {
+  color: var(--text-muted) !important;
+}
+
+.draw-stickers-container #layer-opacity {
+  accent-color: var(--accent);
+}
+
+/* Canvas container */
+.draw-stickers-container .canvas-container {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* Context menu */
+.draw-stickers-container .context-menu,
+.draw-stickers-container .context-menu-header {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .context-menu-header-title,
+.draw-stickers-container .context-menu-title {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .context-menu-item {
+  background: transparent !important;
+  color: var(--text) !important;
+  border-color: transparent !important;
+}
+
+.draw-stickers-container .context-menu-item:hover {
+  background: var(--accent-muted) !important;
+  color: var(--accent) !important;
+}
+
+.draw-stickers-container .context-menu-close {
+  color: var(--text-muted) !important;
+}
+
+.draw-stickers-container .context-menu-divider {
+  border-color: var(--border) !important;
+}
+
+/* Help modal */
+.draw-stickers-container .help-modal,
+.draw-stickers-container .help-modal-content {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+
+.draw-stickers-container .help-modal-header h2,
+.draw-stickers-container .help-section h3,
+.draw-stickers-container .help-grid span {
+  color: var(--text) !important;
+}
+
+.draw-stickers-container .help-close-btn {
+  color: var(--text-muted) !important;
+}
+
+.draw-stickers-container .help-close-btn:hover {
+  color: var(--text) !important;
+}
+
+/* Rotation/arc section */
+.draw-stickers-container #rotation-angle,
+.draw-stickers-container #arc-angle-display,
+.draw-stickers-container .rotation-hint {
+  color: var(--text) !important;
+}
+
+/* Emoji category headers */
+.draw-stickers-container .emoji-category h4 {
+  color: var(--text-muted) !important;
+}
+
+/* Secondary color, labels, range inputs */
+.draw-stickers-container .secondary-color-section label,
+.draw-stickers-container .save-section label,
+.draw-stickers-container label {
+  color: var(--text-muted) !important;
+}
+
+.draw-stickers-container input[type="range"] {
+  accent-color: var(--accent);
+}
