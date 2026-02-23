@@ -95,6 +95,50 @@
     .sb-master-btns { display: flex; gap: 8px; }
     .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 16px; font-size: 0.95rem; text-decoration: none; }
     .back-link:hover { color: var(--text); }
+    .sb-pick-wrap { position: relative; }
+    .sb-pick-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .sb-pick-item {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      background: transparent;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .sb-pick-item:last-child { border-bottom: none; }
+    .sb-pick-item:hover { background: var(--border); }
+    .sb-pick-item .cap { color: var(--text-muted); font-size: 0.75rem; }
+    .sb-pick-loading { padding: 16px; color: var(--text-muted); font-size: 0.85rem; }
+    .sb-pick-empty { padding: 16px; color: var(--text-muted); font-size: 0.85rem; }
+    .sb-pick-btn {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .sb-pick-btn:hover { background: var(--border); }
   </style>
 </head>
 <body>
@@ -143,7 +187,7 @@
   <main class="soundboard-page">
     <a href="/" class="back-link">← Back</a>
     <h1>Soundboard</h1>
-    <p class="subtitle">Pick up to 10 sounds from the Wall of Sound. Mix with volume, stereo pan, customizable visualizations, play/stop each, or play all.</p>
+    <p class="subtitle">Pick up to 10 sounds from the Wall of Sound. Use "Pick" to browse known sounds, or enter a hash. Mix with volume, stereo pan, visualizations, play/stop each, or play all.</p>
 
     <div class="sb-master">
       <div class="sb-volume-row">
@@ -164,6 +208,7 @@
   <script>
     const SLOTS = 10;
     let ctx = null;
+    const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     let masterGain = null;
     const slots = [];
 
@@ -219,7 +264,13 @@
         <div class="sb-viz-wrap">
           <canvas class="sb-viz-canvas" data-slot="${i}"></canvas>
         </div>
-        <input type="text" class="sb-hash-input" data-slot="${i}" placeholder="64 hex chars" maxlength="64" spellcheck="false">
+        <div class="sb-pick-wrap">
+          <div class="sb-hash-row" style="display:flex;gap:6px;">
+            <input type="text" class="sb-hash-input" data-slot="${i}" placeholder="64 hex chars" maxlength="64" spellcheck="false" style="flex:1;">
+            <button type="button" class="sb-pick-btn" data-slot="${i}" title="Pick from known sounds">Pick</button>
+          </div>
+          <div class="sb-pick-dropdown" data-slot="${i}" style="display:none;"></div>
+        </div>
         <div class="sb-slot-btns">
           <button type="button" class="primary" data-action="play">Play</button>
           <button type="button" data-action="stop">Stop</button>
@@ -319,6 +370,45 @@
       });
 
       hashInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadHash(hashInput.value); });
+
+      const pickBtn = slot.querySelector('.sb-pick-btn');
+      const pickDropdown = slot.querySelector('.sb-pick-dropdown');
+      pickBtn.addEventListener('click', async () => {
+        if (pickDropdown.style.display === 'block') {
+          pickDropdown.style.display = 'none';
+          return;
+        }
+        pickDropdown.innerHTML = '<div class="sb-pick-loading">Loading...</div>';
+        pickDropdown.style.display = 'block';
+        try {
+          const res = await fetch('/api/sounds?per=80');
+          const data = await res.json().catch(() => ({}));
+          const items = data.items || [];
+          if (items.length === 0) {
+            pickDropdown.innerHTML = '<div class="sb-pick-empty">No known sounds yet. Upload on the Wall of Sound.</div>';
+            return;
+          }
+          pickDropdown.innerHTML = items.map((s) => {
+            const label = (s.caption || '').trim() || '#' + (s.num || '?');
+            const hashShort = (s.hash || '').slice(0, 12) + '…';
+            return `<button type="button" class="sb-pick-item" data-hash="${escapeHtml(s.hash || '')}"><span class="cap">${escapeHtml(hashShort)}</span> ${escapeHtml(label)}</button>`;
+          }).join('');
+          pickDropdown.querySelectorAll('.sb-pick-item').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              loadHash(btn.dataset.hash);
+              pickDropdown.style.display = 'none';
+            });
+          });
+        } catch (e) {
+          pickDropdown.innerHTML = '<div class="sb-pick-empty">Failed to load sounds.</div>';
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (pickDropdown.style.display === 'block' && !slot.contains(e.target)) {
+          pickDropdown.style.display = 'none';
+        }
+      });
 
       return {
         el: slot,

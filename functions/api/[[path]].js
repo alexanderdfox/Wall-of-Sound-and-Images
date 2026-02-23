@@ -500,6 +500,36 @@ export async function onRequest(context) {
       }
     }
 
+    // GET /api/sounds - list known sounds for soundboard picker
+    if (path === 'sounds' && method === 'GET') {
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 50));
+      const q = (url.searchParams.get('q') || '').trim().slice(0, 50);
+      const offset = (page - 1) * per;
+      let sql = "SELECT num, hash, caption, duration, created_at as createdAt FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')";
+      const params = [];
+      if (q) {
+        sql += " AND (hash LIKE ? OR caption LIKE ?)";
+        params.push('%' + q + '%', '%' + q + '%');
+      }
+      sql += " ORDER BY num DESC LIMIT ? OFFSET ?";
+      params.push(per, offset);
+      try {
+        const countSql = q
+          ? "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (hash LIKE ? OR caption LIKE ?)"
+          : "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')";
+        const countRow = q
+          ? await db.prepare(countSql).bind('%' + q + '%', '%' + q + '%').first()
+          : await db.prepare(countSql).first();
+        const rows = await db.prepare(sql).bind(...params).all();
+        const total = countRow?.c ?? 0;
+        return json({ items: rows.results || [], total, page, per });
+      } catch (e) {
+        if (/no such table: sounds/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        throw e;
+      }
+    }
+
     // GET /api/catalog
     if (path === 'catalog' && method === 'GET') {
       const rows = await db.prepare(
