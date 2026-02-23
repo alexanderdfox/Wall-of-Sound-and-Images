@@ -32,7 +32,7 @@ Potential improvements and future work.
 
 ## Technical
 
-- [ ] **Run migrations 0010 & 0011** — If not yet applied: `cf:d1:migrate-reports-ip`, `cf:d1:migrate-disabled`
+- [ ] **Run migrations 0010, 0011, 0012** — If not yet applied: `cf:d1:migrate-reports-ip`, `cf:d1:migrate-disabled`, `cf:d1:migrate-user-disable`
 - [ ] **Package.json script** — Add `cf:d1:migrate-disabled` for migration 0011
 - [ ] **Tests** — Unit or integration tests for auth, reports, disable logic
 

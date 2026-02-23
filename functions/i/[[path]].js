@@ -34,7 +34,7 @@ export async function onRequest(context) {
       if (isNaN(num) || num < 1) return json({ error: 'Invalid number' }, 400);
 
       const post = await db.prepare(
-        'SELECT num, image_hash as hash, babel_hash as babeliaLocation, babelia_png FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)'
+        "SELECT num, image_hash as hash, babel_hash as babeliaLocation, babelia_png FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(num).first();
       if (!post) return json({ error: 'Not found', num }, 404);
 
@@ -78,7 +78,7 @@ export async function onRequest(context) {
       if (!id || id.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
 
       const post = await db.prepare(
-        'SELECT num, image_hash as hash, babel_hash as babeliaLocation, babelia_png FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0)'
+        "SELECT num, image_hash as hash, babel_hash as babeliaLocation, babelia_png FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(id, id).first();
       if (!post) return json({ error: 'Not found', id }, 404);
 

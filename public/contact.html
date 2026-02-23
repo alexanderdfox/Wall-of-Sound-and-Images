@@ -3,19 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User — Tchoff</title>
+  <title>Contact — Tchoff</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/theme-loader.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .contact-page { max-width: 560px; margin: 0 auto; padding: 40px 24px 60px; }
+    .contact-page h1 { font-size: 1.75rem; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .contact-page .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; }
+    .contact-page p { margin-bottom: 16px; line-height: 1.6; color: var(--text); }
+    .contact-page a { color: var(--accent); }
+    .contact-page a:hover { text-decoration: underline; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+  </style>
 </head>
 <body>
   <header class="header">
     <a href="/" class="logo">Tchoff</a>
     <nav class="nav">
       <div class="nav-dropdown-wrap">
-        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Navigate">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
@@ -41,54 +51,27 @@
           <a href="/backend.html" role="menuitem">Backend</a>
         </div>
       </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
     </nav>
   </header>
 
-  <main class="main user-page">
-    <div id="user-info" class="user-info"></div>
-    <section id="sounds-section" class="user-sounds-section">
-      <h2 class="section-title">Sounds</h2>
-      <div class="sounds-grid grid-4x10" id="sounds-grid"></div>
-      <div class="empty-state" id="sounds-empty-state" style="display:none">
-        <p>No sounds yet.</p>
-      </div>
-      <nav class="pagination" id="sounds-pagination"></nav>
-    </section>
-    <section class="user-images-section">
-      <h2 class="section-title">Images</h2>
-      <div class="feed-grid grid-4x10" id="feed-grid"></div>
-      <div class="empty-state" id="empty-state" style="display:none">
-        <p>No images yet.</p>
-      </div>
-      <nav class="pagination" id="pagination"></nav>
-    </section>
+  <main class="contact-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Contact</h1>
+    <p class="subtitle">Questions, support, or feedback about Tchoff.</p>
+
+    <p>For general inquiries, DMCA notices, privacy requests, or account issues, please use the contact method published on the Service or reach out to the site operator.</p>
+    <p>You can also find relevant information in our <a href="/terms.html">Terms of Use</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
   </main>
 
-  <dialog class="modal" id="follow-modal">
-    <div class="modal-content">
-      <button type="button" class="btn-close" id="close-follow-modal" aria-label="Close">×</button>
-      <h2 id="follow-modal-title">Followers</h2>
-      <div id="follow-modal-list"></div>
-    </div>
-  </dialog>
-
-  <dialog class="modal modal-lightbox" id="post-modal">
-    <div class="modal-content modal-content-full">
-      <button class="btn-close" id="close-post">×</button>
-      <div class="lightbox-body" id="lightbox-body"></div>
-    </div>
-  </dialog>
-
-  <dialog class="modal modal-lightbox" id="sound-modal">
-    <div class="modal-content modal-content-full">
-      <button class="btn-close" id="close-sound">×</button>
-      <div class="lightbox-body" id="sound-modal-body"></div>
-    </div>
-  </dialog>
-
-  <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
-  <script src="/app-common.js"></script>
-  <script src="/user.js"></script>
+  <script>
+    document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+  </script>
 </body>
 </html>

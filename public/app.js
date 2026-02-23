@@ -645,12 +645,31 @@ async function checkAuth() {
   }
 }
 
+function updateDisableAccountUI() {
+  const pendingWrap = document.getElementById('disable-pending-wrap');
+  const requestWrap = document.getElementById('disable-request-wrap');
+  const pendingMsg = document.getElementById('disable-pending-msg');
+  if (!pendingWrap || !requestWrap) return;
+  const at = currentUser?.disableRequestedAt;
+  if (at) {
+    const d = new Date(at);
+    d.setDate(d.getDate() + 30);
+    pendingMsg.textContent = 'Account will be disabled on ' + d.toLocaleDateString() + '. Your content will be hidden. Cancel before then to keep your account active.';
+    pendingWrap.style.display = 'block';
+    requestWrap.style.display = 'none';
+  } else {
+    pendingWrap.style.display = 'none';
+    requestWrap.style.display = 'block';
+  }
+}
+
 document.getElementById('btn-auth').addEventListener('click', () => {
   if (currentUser) {
     document.getElementById('auth-logged-in').style.display = 'block';
     document.getElementById('auth-forms').style.display = 'none';
     document.getElementById('auth-username-display').textContent = '@' + (currentUser.username || 'user');
     document.getElementById('auth-username-edit').style.display = 'none';
+    updateDisableAccountUI();
     loadFriends();
   } else {
     document.getElementById('auth-logged-in').style.display = 'none';
@@ -705,6 +724,32 @@ document.getElementById('auth-password-save').addEventListener('click', async ()
     document.getElementById('auth-new-password').value = '';
     document.getElementById('auth-new-password-confirm').value = '';
     alert('Password updated.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById('btn-disable-account').addEventListener('click', async () => {
+  if (!confirm('Your account will be disabled in 30 days. Your content will be hidden from everyone. Data is retained. Cancel before the date to keep your account. Continue?')) return;
+  try {
+    const res = await fetch(`${API}/auth/me/disable-request`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + authToken } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    await checkAuth();
+    updateDisableAccountUI();
+    alert(data.message || 'Account will be disabled in 30 days.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+document.getElementById('btn-cancel-disable')?.addEventListener('click', async () => {
+  try {
+    const res = await fetch(`${API}/auth/me/cancel-disable`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + authToken } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    await checkAuth();
+    updateDisableAccountUI();
+    alert(data.message || 'Account disable cancelled.');
   } catch (err) {
     alert(err.message);
   }

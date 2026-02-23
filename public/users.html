@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Friends — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme-loader.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .users-page { max-width: 640px; margin: 0 auto; padding: 32px 24px; }
+    .users-page h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .users-page .subtitle { color: var(--text-muted); margin-bottom: 24px; font-size: 0.9rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 20px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+    .users-search-wrap { margin-bottom: 24px; position: relative; }
+    .users-search-wrap input {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+    }
+    .users-search-wrap input::placeholder { color: var(--text-muted); }
+    .user-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+    }
+    .user-list-item a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .user-list-item a:hover { text-decoration: underline; }
+    .user-list-item .user-actions { flex-shrink: 0; }
+    .user-list-item .friend-status { font-size: 0.85rem; color: var(--text-muted); }
+    .users-auth-required { padding: 48px 24px; text-align: center; color: var(--text-muted); }
+    .users-auth-required a { color: var(--accent); }
+    .users-pagination { display: flex; gap: 12px; align-items: center; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
+          <a href="/users.html" role="menuitem">Find Friends</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem">Themes</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/contact.html" role="menuitem">Contact</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+          <a href="/backend.html" role="menuitem">Backend</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="users-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Find Friends</h1>
+    <p class="subtitle">Search users by username and add them as friends.</p>
+
+    <div id="users-auth-required" class="users-auth-required" style="display:none">
+      <p>Sign in to browse and add friends.</p>
+      <p><a href="/#auth">Sign in</a></p>
+    </div>
+
+    <div id="users-content" style="display:none">
+      <div class="users-search-wrap">
+        <input type="text" id="users-search-input" placeholder="Search by username…" autocomplete="off">
+      </div>
+      <div id="users-list"></div>
+      <div class="users-pagination" id="users-pagination"></div>
+    </div>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+  <script>
+    const API = '/api';
+    const authToken = localStorage.getItem('tchoff_token');
+
+    document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function init() {
+      if (!authToken) {
+        document.getElementById('users-auth-required').style.display = 'block';
+        return;
+      }
+      document.getElementById('users-content').style.display = 'block';
+      loadUsers(1);
+    }
+
+    let searchTimeout = null;
+    document.getElementById('users-search-input')?.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => loadUsers(1), 300);
+    });
+
+    document.getElementById('users-search-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadUsers(1);
+      }
+    });
+
+    let currentPage = 1;
+    async function loadUsers(page) {
+      currentPage = page;
+      const listEl = document.getElementById('users-list');
+      const pagEl = document.getElementById('users-pagination');
+      const q = (document.getElementById('users-search-input')?.value || '').trim().replace(/^@/, '');
+      listEl.innerHTML = '<p class="loading">Loading…</p>';
+      try {
+        const url = `${API}/users?page=${page}&per=24${q ? '&q=' + encodeURIComponent(q) : ''}`;
+        const res = await fetch(url, { headers: { Authorization: 'Bearer ' + authToken } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const items = data.items || [];
+        listEl.innerHTML = items.length === 0
+          ? '<p class="loading">No users found. Try a different search.</p>'
+          : items.map((u) => {
+              const profileLink = `/u/${encodeURIComponent(u.username)}`;
+              let actionHtml = '';
+              if (u.friendStatus === 'friends') {
+                actionHtml = '<span class="friend-status">Friends</span>';
+              } else if (u.friendStatus === 'pending_sent') {
+                actionHtml = '<span class="friend-status">Request sent</span>';
+              } else if (u.friendStatus === 'pending_in') {
+                actionHtml = '<button type="button" class="btn btn-primary btn-sm btn-accept-request" data-user-id="' + escapeHtml(u.id) + '">Accept</button>';
+              } else {
+                actionHtml = '<button type="button" class="btn btn-primary btn-sm btn-add-friend" data-username="' + escapeHtml(u.username) + '">Add friend</button>';
+              }
+              return `
+                <div class="user-list-item" data-user-id="${escapeHtml(u.id)}">
+                  <a href="${profileLink}">@${escapeHtml(u.username)}</a>
+                  <div class="user-actions">${actionHtml}</div>
+                </div>`;
+            }).join('');
+
+        listEl.querySelectorAll('.btn-add-friend').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const username = btn.dataset.username;
+            btn.disabled = true;
+            btn.textContent = '…';
+            try {
+              const res = await fetch(API + '/friends', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+                body: JSON.stringify({ username }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed');
+              loadUsers(currentPage);
+            } catch (err) {
+              alert(err.message);
+              btn.disabled = false;
+              btn.textContent = 'Add friend';
+            }
+          });
+        });
+
+        listEl.querySelectorAll('.btn-accept-request').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const userId = btn.dataset.userId;
+            btn.disabled = true;
+            btn.textContent = '…';
+            try {
+              const res = await fetch(`${API}/friends/request/${userId}`, {
+                method: 'PATCH',
+                headers: { Authorization: 'Bearer ' + authToken },
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed');
+              loadUsers(currentPage);
+            } catch (err) {
+              alert(err.message);
+              btn.disabled = false;
+              btn.textContent = 'Accept';
+            }
+          });
+        });
+
+        const total = data.total ?? 0;
+        const per = data.per ?? 24;
+        const totalPages = Math.max(1, Math.ceil(total / per));
+        pagEl.innerHTML = totalPages <= 1 ? '' : `
+          <button type="button" class="btn btn-ghost" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">← Prev</button>
+          <span>Page ${page} of ${totalPages}</span>
+          <button type="button" class="btn btn-ghost" ${page >= totalPages ? 'disabled' : ''} data-page="${page + 1}">Next →</button>
+        `;
+        pagEl.querySelectorAll('button[data-page]').forEach((b) => {
+          b.addEventListener('click', () => loadUsers(parseInt(b.dataset.page, 10)));
+        });
+      } catch (err) {
+        listEl.innerHTML = '<p class="error">' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

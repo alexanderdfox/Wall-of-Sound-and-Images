@@ -35,6 +35,7 @@
           <a href="/soundboard.html" role="menuitem">Soundboard</a>
           <a href="/dj.html" role="menuitem">DJ Table</a>
           <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
+          <a href="/users.html" role="menuitem">Find Friends</a>
           <a href="/hashes.html" role="menuitem">Image Hashes</a>
           <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
           <a href="/themes.html" role="menuitem">Themes</a>
@@ -42,6 +43,7 @@
           <a href="/#upload-audio" role="menuitem">Upload Audio</a>
           <a href="/#hash" role="menuitem">View by Hash</a>
           <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/contact.html" role="menuitem">Contact</a>
           <a href="/terms.html" role="menuitem">Terms of Use</a>
           <a href="/privacy.html" role="menuitem">Privacy Policy</a>
           <a href="/backend.html" role="menuitem">Backend</a>
@@ -81,6 +83,8 @@
   </main>
 
   <footer class="site-footer">
+    <a href="/contact.html">Contact</a>
+    <span class="footer-sep">·</span>
     <a href="/terms.html">Terms of Use</a>
     <span class="footer-sep">·</span>
     <a href="/privacy.html">Privacy Policy</a>
@@ -115,6 +119,16 @@
           <button type="button" class="btn btn-ghost" id="btn-edit-username">Change username</button>
           <button type="button" class="btn btn-ghost" id="btn-change-password">Change password</button>
           <button type="button" class="btn btn-ghost" id="btn-logout">Log out</button>
+        </div>
+        <div class="disable-account-section" id="disable-account-section" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border)">
+          <p class="modal-hint" id="disable-account-hint">Your data will be retained. Account and content become hidden 30 days after you request disable.</p>
+          <div id="disable-pending-wrap" style="display:none; margin-bottom:12px">
+            <p class="modal-hint" id="disable-pending-msg"></p>
+            <button type="button" class="btn btn-ghost" id="btn-cancel-disable">Cancel disable request</button>
+          </div>
+          <div id="disable-request-wrap">
+            <button type="button" class="btn btn-ghost" id="btn-disable-account" style="color:var(--text-muted)">Disable my account</button>
+          </div>
         </div>
         <div class="friends-section" id="friends-section">
           <label>Add friend</label>

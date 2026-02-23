@@ -34,16 +34,91 @@ export async function onRequest(context) {
   const db = env.DB;
   if (!db) return json({ error: 'Database not configured' }, 500);
 
+  // Auto-disable accounts 30 days after disable was requested
+  try {
+    await db.prepare(
+      `UPDATE users SET disabled = 1 WHERE disable_requested_at IS NOT NULL AND COALESCE(disabled,0) = 0 AND datetime(disable_requested_at) <= datetime('now', '-30 days')`
+    ).run();
+  } catch (_) { /* columns may not exist */ }
+
   try {
     // GET /api/users/search?q=xxx - search users by username (for add friend)
     if (path === 'users/search' && method === 'GET') {
       const q = (url.searchParams.get('q') || '').trim().replace(/^@/, '').slice(0, 50);
       if (!q || q.length < 2) return json({ users: [] });
       const rows = await db.prepare(
-        'SELECT id, username FROM users WHERE username LIKE ? ORDER BY username LIMIT 10'
+        'SELECT id, username FROM users WHERE username LIKE ? AND COALESCE(disabled,0) = 0 ORDER BY username LIMIT 10'
       ).bind('%' + q + '%').all();
       const users = (rows.results || []).map((r) => ({ id: r.id, username: r.username || 'user' }));
       return json({ users });
+    }
+
+    // GET /api/users - list/search users with friend status (auth optional)
+    if (path === 'users' && method === 'GET') {
+      const q = (url.searchParams.get('q') || '').trim().replace(/^@/, '').slice(0, 50);
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 24));
+      const offset = (page - 1) * per;
+      const token = getBearerToken(request);
+      let viewerId = null;
+      if (token && env.JWT_SECRET) {
+        const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+        if (payload?.sub) viewerId = payload.sub;
+      }
+      let sql = 'SELECT u.id, u.username FROM users u WHERE u.username IS NOT NULL AND COALESCE(u.disabled,0) = 0';
+      const params = [];
+      if (viewerId) {
+        sql += ' AND u.id != ?';
+        params.push(viewerId);
+      }
+      if (q && q.length >= 1) {
+        sql += ' AND u.username LIKE ?';
+        params.push('%' + q + '%');
+      }
+      sql += ' ORDER BY u.username ASC LIMIT ? OFFSET ?';
+      params.push(per + 1, offset);
+      const rows = await db.prepare(sql).bind(...params).all();
+      const raw = rows.results || [];
+      const hasMore = raw.length > per;
+      const items = raw.slice(0, per);
+      let withStatus = items.map((r) => ({ id: r.id, username: r.username || 'user', friendStatus: 'none' }));
+      if (viewerId && items.length > 0) {
+        const ids = items.map((i) => i.id).filter(Boolean);
+        const placeholders = ids.map(() => '?').join(',');
+        const friendRows = await db.prepare(
+          `SELECT requester_id, target_id, status FROM friends
+           WHERE ((requester_id = ? AND target_id IN (${placeholders}))
+              OR (target_id = ? AND requester_id IN (${placeholders})))
+           AND status IN ('accepted','pending')`
+        ).bind(viewerId, ...ids, viewerId, ...ids).all();
+        const statusMap = {};
+        (friendRows.results || []).forEach((f) => {
+          const other = f.requester_id === viewerId ? f.target_id : f.requester_id;
+          if (f.status === 'accepted') statusMap[other] = 'friends';
+          else if (f.requester_id === viewerId) statusMap[other] = 'pending_sent';
+          else statusMap[other] = 'pending_in';
+        });
+        withStatus = items.map((r) => ({
+          id: r.id,
+          username: r.username || 'user',
+          friendStatus: statusMap[r.id] || 'none',
+        }));
+      }
+      let countSql = 'SELECT COUNT(*) as c FROM users WHERE username IS NOT NULL AND COALESCE(disabled,0) = 0';
+      const countParams = [];
+      if (viewerId) {
+        countSql += ' AND id != ?';
+        countParams.push(viewerId);
+      }
+      if (q && q.length >= 1) {
+        countSql += ' AND username LIKE ?';
+        countParams.push('%' + q + '%');
+      }
+      const countRow = countParams.length > 0
+        ? await db.prepare(countSql).bind(...countParams).first()
+        : await db.prepare(countSql).first();
+      const total = countRow?.c ?? items.length;
+      return json({ items: withStatus, total, page, per, hasMore });
     }
 
     // POST /api/auth/signup
@@ -93,8 +168,9 @@ export async function onRequest(context) {
       const email = (body?.email || '').toString().trim().toLowerCase();
       const password = body?.password;
       if (!email || !password) return json({ error: 'Email and password required' }, 400);
-      const user = await db.prepare('SELECT id, email, password_hash, username FROM users WHERE email = ?').bind(email).first();
+      const user = await db.prepare('SELECT id, email, password_hash, username, disabled FROM users WHERE email = ?').bind(email).first();
       if (!user) return json({ error: 'Invalid email or password' }, 401);
+      if (user.disabled) return json({ error: 'Account is disabled. Contact support if you believe this is an error.' }, 403);
       const ok = await verifyPassword(password, user.password_hash);
       if (!ok) return json({ error: 'Invalid email or password' }, 401);
       const displayName = user.username || user.email?.split('@')[0] || 'user';
@@ -112,9 +188,47 @@ export async function onRequest(context) {
       if (!token || !secret) return json({ user: null });
       const payload = await verifyJwt(token, secret);
       if (!payload?.sub) return json({ user: null });
-      const user = await db.prepare('SELECT id, email, username FROM users WHERE id = ?').bind(payload.sub).first();
-      const displayName = user?.username || user?.email?.split('@')[0] || 'user';
-      return json({ user: user ? { id: user.id, username: displayName } : null });
+      const user = await db.prepare('SELECT id, email, username, disabled, disable_requested_at FROM users WHERE id = ?').bind(payload.sub).first();
+      if (!user || user.disabled) return json({ user: null });
+      const displayName = user.username || user.email?.split('@')[0] || 'user';
+      return json({
+        user: {
+          id: user.id,
+          username: displayName,
+          disableRequestedAt: user.disable_requested_at || null,
+        },
+      });
+    }
+
+    // PATCH /api/auth/me/disable-request - schedule account disable (takes effect in 30 days)
+    if (path === 'auth/me/disable-request' && method === 'PATCH') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      try {
+        await db.prepare('UPDATE users SET disable_requested_at = ? WHERE id = ? AND (COALESCE(disabled,0) = 0)')
+          .bind(new Date().toISOString(), payload.sub).run();
+        return json({ success: true, message: 'Account will be disabled in 30 days. Cancel before then to keep your account active.' });
+      } catch (e) {
+        if (/no column named disable_requested_at/i.test(e?.message)) return json({ error: 'Account disable not configured' }, 500);
+        throw e;
+      }
+    }
+
+    // PATCH /api/auth/me/cancel-disable - cancel pending disable
+    if (path === 'auth/me/cancel-disable' && method === 'PATCH') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      try {
+        await db.prepare('UPDATE users SET disable_requested_at = NULL WHERE id = ?').bind(payload.sub).run();
+        return json({ success: true, message: 'Account disable cancelled.' });
+      } catch (e) {
+        if (/no column named disable_requested_at/i.test(e?.message)) return json({ error: 'Account disable not configured' }, 500);
+        throw e;
+      }
     }
 
     // PATCH /api/auth/me (update username)
@@ -282,12 +396,13 @@ export async function onRequest(context) {
       } catch (e) {
         if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled/i.test(e?.message)) {
           try {
-            countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT 100)').first();
+            const imgFilter = " WHERE (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
+            countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100)').first();
             rows = await db.prepare(
-              'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
+              'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
             ).bind(per, offset).all();
           } catch (e2) {
-            if (/no column named disabled/i.test(e2?.message)) {
+            if (/no column named disabled|no such table: users/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images ORDER BY num DESC LIMIT 100)').first();
               rows = await db.prepare(
                 'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
@@ -580,7 +695,7 @@ export async function onRequest(context) {
       if (!sound) return json({ error: 'Sound not found' }, 404);
       try {
         const rows = await db.prepare(
-          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC'
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) AND (c.user_id IS NULL OR c.user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY c.created_at ASC'
         ).bind(num).all();
         return json({ comments: rows.results || [] });
       } catch (e) {
@@ -606,7 +721,7 @@ export async function onRequest(context) {
         await db.prepare('INSERT INTO sound_comments (id, sound_num, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)')
           .bind(crypto.randomUUID(), num, payload.sub, text, new Date().toISOString()).run();
         const rows = await db.prepare(
-          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC'
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) AND (c.user_id IS NULL OR c.user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY c.created_at ASC'
         ).bind(num).all();
         return json({ comments: rows.results || [] });
       } catch (e) {
@@ -646,7 +761,8 @@ export async function onRequest(context) {
       const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 50));
       const q = (url.searchParams.get('q') || '').trim().slice(0, 50);
       const offset = (page - 1) * per;
-      let sql = "SELECT num, hash, caption, duration, created_at as createdAt FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)";
+      const disabledUserSounds = " AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
+      let sql = "SELECT num, hash, caption, duration, created_at as createdAt FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)" + disabledUserSounds;
       const params = [];
       if (q) {
         sql += " AND (hash LIKE ? OR caption LIKE ?)";
@@ -655,9 +771,10 @@ export async function onRequest(context) {
       sql += " ORDER BY num DESC LIMIT ? OFFSET ?";
       params.push(per, offset);
       try {
+        const disabledUser = " AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
         const countSql = q
-          ? "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0) AND (hash LIKE ? OR caption LIKE ?)"
-          : "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)";
+          ? "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)" + disabledUser + " AND (hash LIKE ? OR caption LIKE ?)"
+          : "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)" + disabledUser;
         const countRow = q
           ? await db.prepare(countSql).bind('%' + q + '%', '%' + q + '%').first()
           : await db.prepare(countSql).first();
@@ -673,7 +790,7 @@ export async function onRequest(context) {
     // GET /api/catalog
     if (path === 'catalog' && method === 'GET') {
       const rows = await db.prepare(
-        'SELECT num, image_hash as hash, babel_hash as babeliaLocation FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num ASC'
+        'SELECT num, image_hash as hash, babel_hash as babeliaLocation FROM images WHERE (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY num ASC'
       ).all().catch(() => ({ results: [] }));
       return json({ items: rows.results || [], count: (rows.results || []).length });
     }
@@ -683,7 +800,7 @@ export async function onRequest(context) {
       try {
         const rows = await db.prepare(
           `SELECT s.num, s.hash, s.caption, s.duration, s.created_at as createdAt, s.visibility, u.username
-           FROM sounds s LEFT JOIN users u ON u.id = s.user_id WHERE (COALESCE(s.disabled,0) = 0) ORDER BY s.num ASC`
+           FROM sounds s LEFT JOIN users u ON u.id = s.user_id WHERE (COALESCE(s.disabled,0) = 0) AND (s.user_id IS NULL OR s.user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY s.num ASC`
         ).all();
         const items = (rows.results || []).map((r) => ({
           num: r.num,
@@ -704,7 +821,7 @@ export async function onRequest(context) {
     // GET /api/hashes
     if (path === 'hashes' && method === 'GET') {
       const rows = await db.prepare(
-        'SELECT num, image_hash as imageHash, babel_hash as babelHash, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num ASC'
+        'SELECT num, image_hash as imageHash, babel_hash as babelHash, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY num ASC'
       ).all().catch(() => ({ results: [] }));
       const items = (rows.results || []).map((r) => ({
         num: r.num,
@@ -884,7 +1001,7 @@ export async function onRequest(context) {
         if (payload?.sub) viewerId = payload.sub;
       }
       const post = await db.prepare(
-        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)'
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(num).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       try {
@@ -905,7 +1022,7 @@ export async function onRequest(context) {
       const id = path.slice('post/'.length).replace(/[^a-f0-9]/gi, '');
       if (!id || id.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
       const post = await db.prepare(
-        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0)'
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(id, id).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       const babelHash = post.babeliaLocation || post.hash;
@@ -926,11 +1043,11 @@ export async function onRequest(context) {
         const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
         if (payload?.sub) viewerId = payload.sub;
       }
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
+      const img = await db.prepare("SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))").bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, viewerId))) return json({ error: 'Post not found' }, 404);
       const rows = await db.prepare(
-        `SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.image_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC`
+        `SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.image_num = ? AND (COALESCE(c.disabled,0) = 0) AND (c.user_id IS NULL OR c.user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) ORDER BY c.created_at ASC`
       ).bind(num).all();
       const comments = (rows.results || []).map((r) => ({ id: r.id, text: r.text, createdAt: r.createdAt, userId: r.userId, username: r.username || 'user' }));
       return json({ comments });
@@ -946,7 +1063,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const text = (body?.text || '').toString().trim().slice(0, 500);
       if (!text) return json({ error: 'Comment text required' }, 400);
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
+      const img = await db.prepare("SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))").bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, payload.sub))) return json({ error: 'Post not found' }, 404);
       const id = crypto.randomUUID();
@@ -963,7 +1080,7 @@ export async function onRequest(context) {
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in to like' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
       if (!payload?.sub) return json({ error: 'Sign in to like' }, 401);
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
+      const img = await db.prepare("SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))").bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, payload.sub))) return json({ error: 'Post not found' }, 404);
       const existing = await db.prepare('SELECT 1 FROM likes WHERE image_num = ? AND user_id = ?').bind(num, payload.sub).first();
@@ -1283,7 +1400,7 @@ export async function onRequest(context) {
       let post;
       try {
         post = await db.prepare(
-          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0)'
+          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
         ).bind(id, id).first();
       } catch (e) {
         if (/no column named user_id|no column named disabled/i.test(e?.message)) {
@@ -1309,11 +1426,20 @@ export async function onRequest(context) {
 
 async function resolveUser(db, identifier) {
   if (!identifier) return null;
-  let user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(identifier).first();
-  if (!user) {
-    user = await db.prepare('SELECT id, username FROM users WHERE username = ?').bind(identifier).first();
+  try {
+    let user = await db.prepare('SELECT id, username FROM users WHERE id = ? AND COALESCE(disabled,0) = 0').bind(identifier).first();
+    if (!user) {
+      user = await db.prepare('SELECT id, username FROM users WHERE username = ? AND COALESCE(disabled,0) = 0').bind(identifier).first();
+    }
+    return user;
+  } catch (e) {
+    if (/no column named disabled/i.test(e?.message)) {
+      let user = await db.prepare('SELECT id, username FROM users WHERE id = ?').bind(identifier).first();
+      if (!user) user = await db.prepare('SELECT id, username FROM users WHERE username = ?').bind(identifier).first();
+      return user;
+    }
+    throw e;
   }
-  return user;
 }
 
 function parseExifForApi(exif) {
@@ -1333,19 +1459,21 @@ function parseExifForApi(exif) {
 
 const DISABLED_IMAGES = " AND (COALESCE(images.disabled,0) = 0)";
 const DISABLED_IMAGES_ALIAS = " AND (COALESCE(disabled,0) = 0)";
+const DISABLED_USER_IMAGES = " AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
+const DISABLED_USER_SOUNDS = " AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
 
 function buildVisibilityWhere(viewerId) {
   if (!viewerId) {
-    return { sql: "WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')" + DISABLED_IMAGES_ALIAS, params: [] };
+    return { sql: "WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')" + DISABLED_IMAGES_ALIAS + DISABLED_USER_IMAGES, params: [] };
   }
   return {
-    sql: `WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '' OR user_id = ? OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE target_id = ? AND status = 'accepted'))))` + DISABLED_IMAGES_ALIAS,
+    sql: `WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '' OR user_id = ? OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE target_id = ? AND status = 'accepted'))))` + DISABLED_IMAGES_ALIAS + DISABLED_USER_IMAGES,
     params: [viewerId, viewerId, viewerId],
   };
 }
 
 function buildUserImagesWhere(ownerId, viewerId, canViewOwn) {
-  const disabled = DISABLED_IMAGES_ALIAS;
+  const disabled = DISABLED_IMAGES_ALIAS + DISABLED_USER_IMAGES;
   if (canViewOwn) {
     return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
   }
@@ -1369,7 +1497,7 @@ const DISABLED_SOUNDS = " AND (COALESCE(sounds.disabled,0) = 0)";
 const DISABLED_SOUNDS_ALIAS = " AND (COALESCE(disabled,0) = 0)";
 
 function buildUserSoundsWhere(ownerId, viewerId, canViewOwn) {
-  const disabled = DISABLED_SOUNDS_ALIAS;
+  const disabled = DISABLED_SOUNDS_ALIAS + DISABLED_USER_SOUNDS;
   if (canViewOwn) {
     return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
   }
@@ -1414,7 +1542,7 @@ async function enrichSoundsWithLikesComments(db, sounds, viewerId) {
     ).bind(...nums).all();
     (likeRows.results || []).forEach((r) => { likeCounts[r.sound_num] = r.c; });
     const commentRows = await db.prepare(
-      'SELECT sound_num, COUNT(*) as c FROM sound_comments WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) GROUP BY sound_num'
+      'SELECT sound_num, COUNT(*) as c FROM sound_comments WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) GROUP BY sound_num'
     ).bind(...nums).all();
     (commentRows.results || []).forEach((r) => { commentCounts[r.sound_num] = r.c; });
     if (viewerId) {
@@ -1442,7 +1570,7 @@ async function enrichPostsWithLikesComments(db, posts, viewerId) {
     ).bind(...nums).all();
     (likeRows.results || []).forEach((r) => { likeCounts[r.image_num] = r.c; });
     const commentRows = await db.prepare(
-      'SELECT image_num, COUNT(*) as c FROM comments WHERE image_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) GROUP BY image_num'
+      'SELECT image_num, COUNT(*) as c FROM comments WHERE image_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1)) GROUP BY image_num'
     ).bind(...nums).all();
     (commentRows.results || []).forEach((r) => { commentCounts[r.image_num] = r.c; });
     if (viewerId) {
