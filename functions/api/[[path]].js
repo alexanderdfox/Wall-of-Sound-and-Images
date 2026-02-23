@@ -404,25 +404,36 @@ export async function onRequest(context) {
       const feedWhere = buildVisibilityWhere(viewerId);
       const feedParams = feedWhere.params.concat(per, offset);
       let countRow, rows;
+      const feedCols = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
+      const feedColsNoSource = 'id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility';
       try {
         countRow = await db.prepare(`SELECT COUNT(*) as c FROM (SELECT 1 FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100)`).bind(...feedWhere.params).first();
         rows = await db.prepare(
-          `SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
+          `SELECT * FROM (SELECT ${feedCols} FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
         ).bind(...feedWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled|no such column.*disabled/i.test(e?.message)) {
+        if (/no column named source_code|no such column.*source_code/i.test(e?.message)) {
+          try {
+            rows = await db.prepare(
+              `SELECT * FROM (SELECT ${feedColsNoSource} FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
+            ).bind(...feedWhere.params, per, offset).all();
+            (rows.results || []).forEach((r) => { r.sourceCode = null; });
+          } catch (e2) { throw e; }
+        } else if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
             const imgFilter = " WHERE (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))";
             countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100)').first();
             rows = await db.prepare(
               'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images' + imgFilter + ' ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
             ).bind(per, offset).all();
+            (rows.results || []).forEach((r) => { r.sourceCode = null; });
           } catch (e2) {
             if (/no column named disabled|no such column.*disabled|no such table: users/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images ORDER BY num DESC LIMIT 100)').first();
               rows = await db.prepare(
                 'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
               ).bind(per, offset).all();
+              (rows.results || []).forEach((r) => { r.sourceCode = null; });
             } else throw e2;
           }
         } else throw e;
@@ -490,20 +501,20 @@ export async function onRequest(context) {
       try {
         countRow = await db.prepare(`SELECT COUNT(*) as c FROM images ${userImagesWhere.sql}`).bind(...userImagesWhere.params).first();
         rows = await db.prepare(
-          `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
+          `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
         ).bind(...userImagesWhere.params, per, offset).all();
       } catch (e) {
         if (/no column named visibility|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           try {
             countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0)').bind(id).first();
             rows = await db.prepare(
-              'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT ? OFFSET ?'
+              'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT ? OFFSET ?'
             ).bind(id, per, offset).all();
           } catch (e2) {
             if (/no column named disabled|no such column.*disabled/i.test(e2?.message)) {
               countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
               rows = await db.prepare(
-                'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
+                'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
               ).bind(id, per, offset).all();
             } else throw e2;
           }
@@ -880,6 +891,7 @@ export async function onRequest(context) {
 
       const HEX64 = /^[a-f0-9]{64}$/i;
       let imageHash, babelHash, babeliaPng, exif, caption, username, width, height, visibility = 'public';
+      let sourceCode = null;
       let imageFile = null;
 
       const contentType = request.headers.get('content-type') || '';
@@ -893,6 +905,7 @@ export async function onRequest(context) {
         babeliaPng = form.get('babeliaPng')?.toString?.();
         exif = form.get('exif')?.toString?.();
         caption = form.get('caption')?.toString?.();
+        sourceCode = form.get('sourceCode')?.toString?.();
         username = form.get('username')?.toString?.();
         width = form.get('width')?.toString?.() || null;
         height = form.get('height')?.toString?.() || null;
@@ -905,6 +918,7 @@ export async function onRequest(context) {
         babeliaPng = b.babeliaPng;
         exif = b.exif;
         caption = b.caption;
+        sourceCode = b.sourceCode;
         username = b.username;
         width = b.width;
         height = b.height;
@@ -980,15 +994,24 @@ export async function onRequest(context) {
 
       const sanitizeCaption = (s) => String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 500);
       const safeCaption = sanitizeCaption(caption);
+      const sanitizeSourceCode = (s) => {
+        const t = String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+        return t.length > 4096 ? t.slice(0, 4096) : t;
+      };
+      const safeSourceCode = sourceCode ? sanitizeSourceCode(sourceCode) : null;
 
       const insertUsername = displayName;
       const vis = (visibility === 'friends') ? 'friends' : 'public';
       try {
         await db.prepare(
-          'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
+          'INSERT INTO images (id, num, image_hash, babel_hash, caption, source_code, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(id, num, imageHash, babelHash, safeCaption || '', safeSourceCode || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
       } catch (e) {
-        if (/no column named user_id/i.test(e?.message)) {
+        if (/no column named source_code/i.test(e?.message)) {
+          await db.prepare(
+            'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif, user_id, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob, userId, vis).run();
+        } else if (/no column named user_id/i.test(e?.message)) {
           await db.prepare(
             'INSERT INTO images (id, num, image_hash, babel_hash, caption, username, created_at, origin_ip, width, height, exif) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
           ).bind(id, num, imageHash, babelHash, safeCaption || '', insertUsername, createdAt, originIp, widthInt, heightInt, exifBlob).run();
@@ -1020,6 +1043,7 @@ export async function onRequest(context) {
         hash: imageHash,
         babeliaLocation: babelHash,
         caption: safeCaption || '',
+        sourceCode: safeSourceCode || null,
         username: insertUsername,
         createdAt,
         width: widthInt,
@@ -1066,7 +1090,7 @@ export async function onRequest(context) {
         if (payload?.sub) viewerId = payload.sub;
       }
       const post = await db.prepare(
-        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(num).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       try {
@@ -1087,7 +1111,7 @@ export async function onRequest(context) {
       const id = path.slice('post/'.length).replace(/[^a-f0-9]/gi, '');
       if (!id || id.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
       const post = await db.prepare(
-        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
+        "SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))"
       ).bind(id, id).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       const babelHash = post.babeliaLocation || post.hash;
@@ -1326,20 +1350,81 @@ export async function onRequest(context) {
       }
     }
 
-    // GET /api/suggestions - list suggestions (public)
+    // GET /api/suggestions - list suggestions (public), sort by popular or newest
     if (path === 'suggestions' && method === 'GET') {
       const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
       const per = Math.min(50, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 20));
       const offset = (page - 1) * per;
+      const sort = (url.searchParams.get('sort') || 'popular').toString() === 'newest' ? 'newest' : 'popular';
+      let viewerId = null;
+      const token = getBearerToken(request);
+      if (token && env.JWT_SECRET) {
+        try {
+          const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+          if (payload?.sub) viewerId = payload.sub;
+        } catch (_) {}
+      }
       try {
         const countRow = await db.prepare('SELECT COUNT(*) as c FROM suggestions').first();
-        const rows = await db.prepare(
-          'SELECT id, idea, author, created_at as createdAt FROM suggestions ORDER BY created_at DESC LIMIT ? OFFSET ?'
-        ).bind(per, offset).all();
         const total = countRow?.c ?? 0;
-        return json({ items: rows.results || [], total, page, per });
+        let rows;
+        if (sort === 'newest') {
+          rows = await db.prepare(
+            `SELECT s.id, s.idea, s.author, s.created_at as createdAt,
+               COALESCE((SELECT COUNT(*) FROM suggestion_votes v WHERE v.suggestion_id = s.id), 0) as votes,
+               ${viewerId ? "(SELECT 1 FROM suggestion_votes v2 WHERE v2.suggestion_id = s.id AND v2.user_id = ?)" : "0"} as voted
+             FROM suggestions s ORDER BY s.created_at DESC LIMIT ? OFFSET ?`
+          ).bind(...(viewerId ? [viewerId, per, offset] : [per, offset])).all();
+        } else {
+          rows = await db.prepare(
+            `SELECT s.id, s.idea, s.author, s.created_at as createdAt,
+               COALESCE((SELECT COUNT(*) FROM suggestion_votes v WHERE v.suggestion_id = s.id), 0) as votes,
+               ${viewerId ? "(SELECT 1 FROM suggestion_votes v2 WHERE v2.suggestion_id = s.id AND v2.user_id = ?)" : "0"} as voted
+             FROM suggestions s ORDER BY votes DESC, s.created_at DESC LIMIT ? OFFSET ?`
+          ).bind(...(viewerId ? [viewerId, per, offset] : [per, offset])).all();
+        }
+        const items = (rows.results || []).map((r) => ({
+          id: r.id,
+          idea: r.idea,
+          author: r.author,
+          createdAt: r.createdAt,
+          votes: Number(r.votes) || 0,
+          voted: !!(r.voted && r.voted !== 0),
+        }));
+        return json({ items, total, page, per, sort });
       } catch (e) {
         if (/no such table: suggestions/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        if (/no such table: suggestion_votes/i.test(e?.message)) {
+          const fallbackRows = await db.prepare('SELECT id, idea, author, created_at as createdAt FROM suggestions ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(per, offset).all();
+          const items = (fallbackRows.results || []).map((r) => ({ ...r, votes: 0, voted: false }));
+          const totalCount = (await db.prepare('SELECT COUNT(*) as c FROM suggestions').first())?.c ?? 0;
+          return json({ items, total: totalCount, page, per, sort });
+        }
+        throw e;
+      }
+    }
+
+    // POST /api/suggestions/:id/vote - toggle upvote (auth required)
+    if (path.match(/^suggestions\/[a-zA-Z0-9-]+\/vote$/) && method === 'POST') {
+      const suggestionId = path.split('/')[1];
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in to vote' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in to vote' }, 401);
+      try {
+        const exists = await db.prepare('SELECT 1 FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?').bind(suggestionId, payload.sub).first();
+        if (exists) {
+          await db.prepare('DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?').bind(suggestionId, payload.sub).run();
+          const countRow = await db.prepare('SELECT COUNT(*) as c FROM suggestion_votes WHERE suggestion_id = ?').bind(suggestionId).first();
+          return json({ voted: false, votes: countRow?.c ?? 0 });
+        } else {
+          await db.prepare('INSERT INTO suggestion_votes (suggestion_id, user_id, created_at) VALUES (?, ?, ?)').bind(suggestionId, payload.sub, new Date().toISOString()).run();
+          const countRow = await db.prepare('SELECT COUNT(*) as c FROM suggestion_votes WHERE suggestion_id = ?').bind(suggestionId).first();
+          return json({ voted: true, votes: countRow?.c ?? 0 });
+        }
+      } catch (e) {
+        if (/no such table: suggestion_votes/i.test(e?.message)) return json({ error: 'Voting not configured' }, 500);
+        if (/FOREIGN KEY constraint failed/i.test(e?.message)) return json({ error: 'Suggestion not found' }, 404);
         throw e;
       }
     }
@@ -1638,12 +1723,12 @@ export async function onRequest(context) {
       let post;
       try {
         post = await db.prepare(
-          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
+          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0) AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE COALESCE(disabled,0)=1))'
         ).bind(id, id).first();
       } catch (e) {
         if (/no column named user_id|no column named disabled|no such column.*disabled/i.test(e?.message)) {
           post = await db.prepare(
-            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
+            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, source_code as sourceCode, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
           ).bind(id, id).first();
         } else throw e;
       }

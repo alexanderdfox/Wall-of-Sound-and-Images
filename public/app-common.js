@@ -7,6 +7,13 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function renderCodeComic(code, compact = false) {
+  if (!code || typeof code !== 'string') return '';
+  const escaped = escapeHtml(code.trim());
+  const cls = compact ? 'code-comic compact' : 'code-comic';
+  return `<div class="${cls}">${escaped}</div>`;
+}
+
 function renderCommentText(text) {
   if (!text) return '';
   const re = /\[sound:#(\d+)\]/g;
@@ -40,6 +47,7 @@ async function openPost(post, postModal, lightboxBody) {
     <div class="lightbox-meta">
       ${userEl}
       ${post.caption ? `<p>${escapeHtml(post.caption)}</p>` : ''}
+      ${(post.sourceCode || post.source_code) ? renderCodeComic(post.sourceCode || post.source_code) : ''}
       <div class="lightbox-actions">
         <button type="button" class="btn-like ${likedByMe ? 'liked' : ''}" data-num="${post.num}" aria-label="Like">
           👍 <span class="like-count">${likeCount}</span>

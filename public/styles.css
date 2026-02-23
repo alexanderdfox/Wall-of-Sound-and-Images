@@ -298,6 +298,61 @@ body {
 }
 @media (min-width: 768px) { .post-hash { font-size: 0.7rem; margin-top: 8px; } }
 
+/* Comic-styled source code snippet */
+.code-comic {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 2px solid var(--text);
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  position: relative;
+}
+.code-comic::before {
+  content: 'CODE';
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  font-family: var(--font-sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 4px;
+}
+.code-comic.compact {
+  font-size: 0.7rem;
+  padding: 8px 10px;
+  max-height: 4.5em;
+  overflow: hidden;
+}
+.code-comic.compact::before { font-size: 0.55rem; padding: 1px 4px; }
+
+.source-code-wrap { margin-bottom: 16px; }
+.source-code-wrap label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; }
+.source-code-wrap textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  resize: vertical;
+  min-height: 80px;
+}
+.source-code-count { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; display: block; }
+
 /* Modals */
 .modal {
   border: none;

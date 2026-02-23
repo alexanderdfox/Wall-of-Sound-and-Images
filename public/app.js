@@ -21,6 +21,14 @@ const soundFileInput = document.getElementById('sound-file-input');
 const soundDropzoneText = document.getElementById('sound-dropzone-text');
 const usernameWrap = document.getElementById('username-wrap');
 
+function updateSourceCodeCount() {
+  const el = document.getElementById('source-code-input');
+  const countEl = document.getElementById('source-code-count');
+  if (el && countEl) countEl.textContent = `${(el.value || '').length} / 4096`;
+}
+
+document.getElementById('source-code-input')?.addEventListener('input', updateSourceCodeCount);
+
 let selectedFile = null;
 let selectedSoundFile = null;
 let mediaRecorder = null;
@@ -68,6 +76,7 @@ function renderFeed(posts) {
       <div class="post-info">
         <div class="post-user-wrap">${userLink(post)}</div>
         ${post.caption ? `<div class="post-caption">${escapeHtml(post.caption)}</div>` : ''}
+        ${(post.sourceCode || post.source_code) ? (typeof renderCodeComic === 'function' ? renderCodeComic(post.sourceCode || post.source_code, true) : '') : ''}
         <div class="post-stats">👍 ${post.likeCount ?? 0} · 💬 ${post.commentCount ?? 0}</div>
         <div class="post-hash" title="${post.babeliaLocation || post.hash || ''}">#${post.num || '?'} · ${(post.babeliaLocation || post.hash || '').slice(0, 12)}…</div>
         ${(post.width && post.height) ? `<div class="post-meta-small">${post.width}×${post.height}</div>` : ''}
@@ -148,6 +157,8 @@ function switchUploadMediaTab(type) {
   const audioPanel = document.getElementById('upload-audio-panel');
   if (imagePanel) imagePanel.style.display = type === 'image' ? '' : 'none';
   if (audioPanel) audioPanel.style.display = type === 'audio' ? '' : 'none';
+  const sourceCodeWrap = document.getElementById('source-code-wrap');
+  if (sourceCodeWrap) sourceCodeWrap.style.display = type === 'image' ? '' : 'none';
   // Username: show for Image when not logged in (anonymous); always hide for Audio (uses auth)
   if (usernameWrap) usernameWrap.style.display = type === 'image' && !currentUser ? '' : 'none';
   submitUpload.disabled = true;
@@ -395,6 +406,8 @@ function resetUploadForm() {
   if (fileInput) fileInput.value = '';
   if (soundFileInput) soundFileInput.value = '';
   captionInput.value = '';
+  const sourceCodeInput = document.getElementById('source-code-input');
+  if (sourceCodeInput) { sourceCodeInput.value = ''; updateSourceCodeCount(); }
   usernameInput.value = 'anonymous';
   const visSelect = document.getElementById('visibility-select');
   if (visSelect) visSelect.value = 'public';
@@ -499,6 +512,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     form.append('width', String(width || ''));
     form.append('height', String(height || ''));
     form.append('caption', captionInput.value || '');
+    const sc = document.getElementById('source-code-input')?.value?.trim();
+    if (sc) form.append('sourceCode', sc);
     form.append('username', usernameInput.value || 'anonymous');
     form.append('visibility', document.getElementById('visibility-select')?.value || 'public');
 

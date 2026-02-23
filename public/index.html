@@ -221,6 +221,11 @@
 
       <form id="upload-form">
         <input type="text" id="caption-input" placeholder="Caption (optional)">
+        <div id="source-code-wrap" class="source-code-wrap">
+          <label for="source-code-input">Source code (optional, up to 4096 chars)</label>
+          <textarea id="source-code-input" placeholder="Paste code snippet…" maxlength="4096" rows="6"></textarea>
+          <span class="source-code-count" id="source-code-count">0 / 4096</span>
+        </div>
         <div class="visibility-wrap">
           <label for="visibility-select">Visibility</label>
           <select id="visibility-select">

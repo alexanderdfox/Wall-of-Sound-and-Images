@@ -18,9 +18,20 @@
     .suggestions-form .form-row { display: flex; gap: 12px; align-items: flex-start; margin-top: 12px; }
     .suggestions-form .form-row .btn { flex-shrink: 0; }
     .suggestions-form .error { color: var(--danger); font-size: 0.9rem; margin-top: 8px; }
-    .suggestion-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+    .suggestion-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; display: flex; gap: 16px; align-items: flex-start; }
+    .suggestion-vote-col { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .suggestion-vote-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+    .suggestion-vote-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+    .suggestion-vote-btn.voted { background: var(--accent-muted); color: var(--accent); border-color: var(--accent); }
+    .suggestion-vote-btn:disabled { cursor: default; opacity: 0.7; }
+    .suggestion-vote-count { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+    .suggestion-body { flex: 1; min-width: 0; }
     .suggestion-item .idea { font-size: 1rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
     .suggestion-item .meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 10px; }
+    .suggestions-sort { display: flex; gap: 8px; margin-bottom: 16px; }
+    .suggestions-sort button { padding: 8px 16px; font-size: 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
+    .suggestions-sort button:hover { color: var(--text); }
+    .suggestions-sort button.active { background: var(--accent-muted); color: var(--accent); border-color: var(--accent); }
     .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
     .back-link:hover { color: var(--text); }
     .suggestions-empty { text-align: center; padding: 32px; color: var(--text-muted); }
@@ -81,7 +92,11 @@
       </div>
     </form>
 
-    <h2 style="font-size:1.1rem;margin-bottom:16px">Ideas</h2>
+    <h2 style="font-size:1.1rem;margin-bottom:8px">Ideas</h2>
+    <div class="suggestions-sort">
+      <button type="button" id="sort-popular" class="active">Most Popular</button>
+      <button type="button" id="sort-newest">Newest</button>
+    </div>
     <div id="suggestions-list"></div>
     <div class="suggestions-pagination" id="suggestions-pagination"></div>
   </main>
@@ -96,6 +111,17 @@
     }
 
     document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+
+    let currentSort = 'popular';
+    let currentPage = 1;
+
+    document.getElementById('sort-popular').addEventListener('click', () => { currentSort = 'popular'; currentPage = 1; updateSortButtons(); loadSuggestions(1); });
+    document.getElementById('sort-newest').addEventListener('click', () => { currentSort = 'newest'; currentPage = 1; updateSortButtons(); loadSuggestions(1); });
+
+    function updateSortButtons() {
+      document.getElementById('sort-popular').classList.toggle('active', currentSort === 'popular');
+      document.getElementById('sort-newest').classList.toggle('active', currentSort === 'newest');
+    }
 
     document.getElementById('suggestions-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -124,20 +150,26 @@
     });
 
     async function loadSuggestions(page) {
+      currentPage = page;
       const listEl = document.getElementById('suggestions-list');
       const pagEl = document.getElementById('suggestions-pagination');
       listEl.innerHTML = '<p class="loading">Loading…</p>';
       try {
-        const res = await fetch(`${API}/suggestions?page=${page}&per=20`);
+        const url = `${API}/suggestions?page=${page}&per=20&sort=${currentSort}`;
+        const headers = authToken ? { Authorization: 'Bearer ' + authToken } : {};
+        const res = await fetch(url, { headers });
         const data = await res.json();
         const items = data.items || [];
         listEl.innerHTML = items.length === 0
           ? '<div class="suggestions-empty"><p>No suggestions yet. Be the first!</p></div>'
-          : items.map((s) => `
-              <div class="suggestion-item">
-                <div class="idea">${escapeHtml(s.idea)}</div>
-                <div class="meta">${escapeHtml(s.author || 'Anonymous')} · ${s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ''}</div>
-              </div>`).join('');
+          : items.map((s) => renderSuggestion(s)).join('');
+        listEl.querySelectorAll('.suggestion-vote-btn').forEach((btn) => {
+          if (btn.dataset.signin) {
+            btn.addEventListener('click', () => { window.location.href = '/#auth'; });
+          } else {
+            btn.addEventListener('click', () => handleVote(btn));
+          }
+        });
         const total = data.total ?? 0;
         const per = data.per ?? 20;
         const totalPages = Math.max(1, Math.ceil(total / per));
@@ -151,6 +183,48 @@
         });
       } catch (err) {
         listEl.innerHTML = '<p class="error">' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    function renderSuggestion(s) {
+      const votes = Number(s.votes) ?? 0;
+      const voted = !!(s.voted);
+      const canVote = !!authToken;
+      const voteBtn = canVote
+        ? `<button type="button" class="suggestion-vote-btn ${voted ? 'voted' : ''}" data-id="${escapeHtml(s.id)}" title="${voted ? 'Remove upvote' : 'Upvote'}" aria-label="${voted ? 'Remove upvote' : 'Upvote'}">▲</button>`
+        : `<button type="button" class="suggestion-vote-btn" data-signin title="Sign in to vote">▲</button>`;
+      return `
+        <div class="suggestion-item">
+          <div class="suggestion-vote-col">
+            ${voteBtn}
+            <span class="suggestion-vote-count">${votes}</span>
+          </div>
+          <div class="suggestion-body">
+            <div class="idea">${escapeHtml(s.idea)}</div>
+            <div class="meta">${escapeHtml(s.author || 'Anonymous')} · ${s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ''}</div>
+          </div>
+        </div>`;
+    }
+
+    async function handleVote(btn) {
+      const id = btn.dataset.id;
+      if (!id || !authToken) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API}/suggestions/${id}/vote`, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + authToken },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to vote');
+        const countEl = btn.closest('.suggestion-vote-col')?.querySelector('.suggestion-vote-count');
+        if (countEl) countEl.textContent = String(data.votes ?? 0);
+        btn.classList.toggle('voted', !!data.voted);
+      } catch (err) {
+        if (err.message === 'Sign in to vote') window.location.href = '/#auth';
+        else alert(err.message);
+      } finally {
+        btn.disabled = false;
       }
     }
 
