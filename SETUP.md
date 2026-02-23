@@ -96,15 +96,22 @@ The `wrangler.toml` in this repo defines these; attach the same resources in the
 
 ---
 
-## 7. Environment variables / secrets
+## 7. JWT_SECRET (required for auth)
 
-**Settings** → **Environment variables**:
+Set as a **secret** in Cloudflare so you can change it without editing code:
 
-| Name | Value | Notes |
-|------|-------|-------|
-| JWT_SECRET | *(random 64+ char string)* | Required for auth; keep secret |
+**Workers & Pages** → **tchoff** → **Settings** → **Environment variables**  
+→ **Add** → Name: `JWT_SECRET`, Value: *(random 64+ char string)*, **Encrypt** ✓
 
-Generate: `openssl rand -hex 32`
+Or via CLI:
+```bash
+npx wrangler pages secret put JWT_SECRET --project-name=tchoff
+# Enter your secret when prompted
+```
+
+Generate a value: `openssl rand -hex 32`
+
+**Local dev:** Copy `.dev.vars.example` to `.dev.vars` and set `JWT_SECRET` there.
 
 ---
 
@@ -131,4 +138,4 @@ Generate: `openssl rand -hex 32`
 - [ ] Build output directory: `public`
 - [ ] Deploy command: *(empty)*
 - [ ] D1 and KV bindings attached
-- [ ] JWT_SECRET set in environment variables
+- [ ] JWT_SECRET set as encrypted env var in Cloudflare

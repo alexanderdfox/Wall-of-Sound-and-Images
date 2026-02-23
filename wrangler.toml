@@ -2,10 +2,10 @@ name = "tchoff"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "public"
 
-# JWT signing for auth. Set in production: Dashboard → Settings → Environment variables, or:
-# wrangler pages secret put JWT_SECRET --project-name=tchoff
-[vars]
-JWT_SECRET = "change-me-in-production"
+# JWT_SECRET: Set as a secret in Cloudflare (not in this file).
+# Production: Workers & Pages → tchoff → Settings → Environment variables → Add variable JWT_SECRET
+# Or CLI: wrangler pages secret put JWT_SECRET --project-name=tchoff
+# Local dev: Copy .dev.vars.example to .dev.vars and add your JWT_SECRET
 
 # Run: wrangler d1 create tchoff-db  (then paste database_id below)
 [[d1_databases]]

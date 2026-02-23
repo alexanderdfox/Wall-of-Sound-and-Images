@@ -51,9 +51,7 @@ npm run cf:deploy      # deploy to Cloudflare Pages
    - **Root directory**: (leave empty)  
    - **Deploy command**: **Leave empty** — Cloudflare deploys build output automatically. Do not set `npx wrangler deploy`.
 
-4. **Environment variables**  
-   Add in Settings → Environment variables if needed:
-   - `JWT_SECRET` (production) — use a strong random value, or set via `wrangler pages secret put JWT_SECRET`
+4. **JWT_SECRET** — Set as a secret in Settings → Environment variables (encrypt ✓), or `wrangler pages secret put JWT_SECRET --project-name=tchoff`. Not in wrangler.toml so you can change it anytime in Cloudflare.
 
 5. **D1 and KV**  
    Ensure D1 (`tchoff-db`) and KV (`BABEL_IMAGES`, `BABEL_SOUNDS`) are attached to the project in Settings → Functions → D1 bindings / KV bindings.
