@@ -105,12 +105,11 @@
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ name: theme.name, colors: theme.colors || {}, active: setAsActive !== false })
       });
-      if (res.ok) {
-        saveTheme(theme);
-        if (setAsActive !== false) setActive(theme);
-        else apply(theme.colors);
-      }
+      if (res.ok) await res.json().catch(function() {});
     } catch (_) {}
+    saveTheme(theme);
+    if (setAsActive !== false) setActive(theme);
+    else apply(theme.colors);
   }
 
   async function deleteThemeFromServer(name) {

@@ -321,8 +321,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   }
 });
 
-// View by hash
-document.getElementById('btn-view-hash').addEventListener('click', () => {
+// View by hash (button may be absent if using nav dropdown link)
+document.getElementById('btn-view-hash')?.addEventListener('click', () => {
   hashModal.showModal();
   hashInput.value = '';
   hashResult.innerHTML = '';

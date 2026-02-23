@@ -190,7 +190,7 @@ export async function onRequest(context) {
         }
         return json({ success: true, theme: { name, colors } });
       } catch (e) {
-        if (/no such table: user_themes/i.test(e?.message)) return json({ error: 'Themes not available' }, 503);
+        if (/no such table: user_themes/i.test(e?.message)) return json({ success: true, synced: false });
         throw e;
       }
     }
@@ -226,7 +226,7 @@ export async function onRequest(context) {
         await db.prepare('UPDATE user_themes SET is_active = 1 WHERE user_id = ? AND name = ?').bind(payload.sub, name).run();
         return json({ success: true });
       } catch (e) {
-        if (/no such table: user_themes/i.test(e?.message)) return json({ error: 'Themes not available' }, 503);
+        if (/no such table: user_themes/i.test(e?.message)) return json({ success: true, synced: false });
         throw e;
       }
     }
