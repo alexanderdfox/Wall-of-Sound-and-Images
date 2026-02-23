@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soundboard — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .soundboard-page { max-width: 1400px; margin: 0 auto; padding: 24px 16px; }
+    .soundboard-page h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
+    .soundboard-page .subtitle { color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; }
+    .soundboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .sb-slot {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sb-slot-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+    .sb-hash-input {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      width: 100%;
+    }
+    .sb-hash-input:focus { outline: none; border-color: var(--accent); }
+    .sb-slot-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sb-slot-btns button {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .sb-slot-btns button:hover { background: var(--border); }
+    .sb-slot-btns button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .sb-volume-row { display: flex; align-items: center; gap: 8px; }
+    .sb-volume-row span { font-size: 0.75rem; color: var(--text-muted); min-width: 28px; }
+    .sb-volume { flex: 1; height: 6px; -webkit-appearance: none; background: var(--border); border-radius: 3px; }
+    .sb-pan-row { display: flex; align-items: center; gap: 8px; }
+    .sb-pan-row span { font-size: 0.75rem; color: var(--text-muted); min-width: 22px; }
+    .sb-pan-row span:first-child { text-align: right; }
+    .sb-pan-row span:last-child { text-align: left; }
+    .sb-pan { flex: 1; height: 6px; -webkit-appearance: none; background: linear-gradient(to right, var(--accent), var(--border) 50%, var(--accent)); border-radius: 3px; }
+    .sb-pan::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+    .sb-volume::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+    .sb-viz-wrap {
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sb-viz-wrap canvas { display: block; width: 100%; height: 48px; min-height: 48px; border-radius: var(--radius-sm); }
+    .sb-viz-opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .sb-viz-opts select {
+      font-size: 0.7rem;
+      padding: 4px 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .sb-master {
+      margin-bottom: 20px;
+      padding: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+    .sb-master .sb-volume-row { flex: 1; min-width: 120px; max-width: 200px; }
+    .sb-master-btns { display: flex; gap: 8px; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 16px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <a href="/babel.html" class="btn-icon" title="Babel Library">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+          <path d="M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"/>
+        </svg>
+      </a>
+      <a href="/sound.html" class="btn-icon" title="Wall of Sound">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+      </a>
+      <a href="/soundboard.html" class="btn-icon" title="Soundboard" style="background:var(--bg-card);border-color:var(--accent)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="6" width="4" height="12" rx="1"/>
+          <rect x="8" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="8" width="4" height="8" rx="1"/>
+          <rect x="20" y="2" width="2" height="20" rx="1"/>
+        </svg>
+      </a>
+      <a href="/dj.html" class="btn-icon" title="DJ Table">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="8" height="16" rx="1"/>
+          <rect x="14" y="4" width="8" height="16" rx="1"/>
+          <path d="M10 8h4M10 12h4M10 16h4"/>
+        </svg>
+      </a>
+      <a href="/hashes.html" class="btn-icon" title="Hash database">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+      </a>
+    </nav>
+  </header>
+
+  <main class="soundboard-page">
+    <a href="/" class="back-link">← Back</a>
+    <h1>Soundboard</h1>
+    <p class="subtitle">Pick up to 10 sounds from the Wall of Sound. Mix with volume, stereo pan, customizable visualizations, play/stop each, or play all.</p>
+
+    <div class="sb-master">
+      <div class="sb-volume-row">
+        <span>Master</span>
+        <input type="range" class="sb-volume" id="master-volume" min="0" max="100" value="80">
+      </div>
+      <div class="sb-master-btns">
+        <button type="button" class="btn btn-primary" id="play-all">Play all</button>
+        <button type="button" class="btn btn-ghost" id="stop-all">Stop all</button>
+        <button type="button" class="btn btn-ghost" id="random-all">Random all</button>
+      </div>
+    </div>
+
+    <div class="soundboard-grid" id="soundboard-grid"></div>
+  </main>
+
+  <script src="/hash-util.js"></script>
+  <script>
+    const SLOTS = 10;
+    let ctx = null;
+    let masterGain = null;
+    const slots = [];
+
+    function initAudioContext() {
+      if (ctx) return ctx;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = ctx.createGain();
+      masterGain.connect(ctx.destination);
+      updateMasterVolume();
+      return ctx;
+    }
+
+    function normHash(val) {
+      return String(val || '').toLowerCase().replace(/[^a-f0-9]/g, '').padStart(64, '0').slice(-64);
+    }
+
+    const VIZ_COLORS = {
+      accent: 'var(--accent)',
+      green: '#22c55e',
+      cyan: '#06b6d4',
+      magenta: '#d946ef',
+      orange: '#f97316'
+    };
+
+    function createSlot(i) {
+      const audio = new Audio();
+      let gainNode = null;
+      let pannerNode = null;
+      let analyserNode = null;
+      let sourceNode = null;
+
+      const slot = document.createElement('div');
+      slot.className = 'sb-slot';
+      slot.dataset.index = i;
+      slot.innerHTML = `
+        <div class="sb-slot-header">
+          <span>Slot ${i + 1}</span>
+          <div class="sb-viz-opts">
+            <select class="sb-viz-type" data-slot="${i}" title="Visualization type">
+              <option value="waveform">Waveform</option>
+              <option value="bars">Bars</option>
+              <option value="circle">Circle</option>
+            </select>
+            <select class="sb-viz-color" data-slot="${i}" title="Color">
+              <option value="accent">Accent</option>
+              <option value="green">Green</option>
+              <option value="cyan">Cyan</option>
+              <option value="magenta">Magenta</option>
+              <option value="orange">Orange</option>
+            </select>
+          </div>
+        </div>
+        <div class="sb-viz-wrap">
+          <canvas class="sb-viz-canvas" data-slot="${i}"></canvas>
+        </div>
+        <input type="text" class="sb-hash-input" data-slot="${i}" placeholder="64 hex chars" maxlength="64" spellcheck="false">
+        <div class="sb-slot-btns">
+          <button type="button" class="primary" data-action="play">Play</button>
+          <button type="button" data-action="stop">Stop</button>
+          <button type="button" data-action="random">Random</button>
+          <button type="button" data-action="prev">←</button>
+          <button type="button" data-action="next">→</button>
+        </div>
+        <div class="sb-volume-row">
+          <span>Vol</span>
+          <input type="range" class="sb-volume" data-slot="${i}" min="0" max="100" value="100">
+        </div>
+        <div class="sb-pan-row">
+          <span>L</span>
+          <input type="range" class="sb-pan" data-slot="${i}" min="-100" max="100" value="0" title="Stereo: left / center / right">
+          <span>R</span>
+        </div>
+      `;
+
+      const hashInput = slot.querySelector(`input.sb-hash-input`);
+      const volInput = slot.querySelector(`input.sb-volume`);
+      const panInput = slot.querySelector(`input.sb-pan`);
+      const vizCanvas = slot.querySelector(`canvas.sb-viz-canvas`);
+      const vizTypeSelect = slot.querySelector(`select.sb-viz-type`);
+      const vizColorSelect = slot.querySelector(`select.sb-viz-color`);
+
+      const getVizColor = () => {
+        const v = vizColorSelect.value;
+        if (v === 'accent') return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366f1';
+        return VIZ_COLORS[v] || '#6366f1';
+      };
+
+      const connectToContext = () => {
+        if (!ctx || sourceNode) return;
+        initAudioContext();
+        sourceNode = ctx.createMediaElementSource(audio);
+        gainNode = ctx.createGain();
+        pannerNode = ctx.createStereoPanner();
+        analyserNode = ctx.createAnalyser();
+        analyserNode.fftSize = 256;
+        analyserNode.smoothingTimeConstant = 0.7;
+        gainNode.gain.value = parseInt(volInput.value, 10) / 100;
+        pannerNode.pan.value = parseInt(panInput.value, 10) / 100;
+        sourceNode.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(analyserNode);
+        analyserNode.connect(masterGain);
+      };
+
+      const loadHash = (hash) => {
+        const h = normHash(hash);
+        if (h.length !== 64) return false;
+        hashInput.value = h;
+        audio.src = `/s/${h}`;
+        audio.load();
+        return true;
+      };
+
+      const play = () => {
+        initAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+        if (!loadHash(hashInput.value)) {
+          const h = typeof randomBabelHash === 'function' ? randomBabelHash() : '0'.repeat(64);
+          loadHash(h);
+        }
+        connectToContext();
+        if (gainNode) gainNode.gain.value = parseInt(volInput.value, 10) / 100;
+        if (pannerNode) pannerNode.pan.value = parseInt(panInput.value, 10) / 100;
+        audio.play().catch(() => {});
+      };
+
+      const stop = () => {
+        audio.pause();
+        audio.currentTime = 0;
+      };
+
+      slot.querySelector('[data-action="play"]').addEventListener('click', play);
+      slot.querySelector('[data-action="stop"]').addEventListener('click', stop);
+      slot.querySelector('[data-action="random"]').addEventListener('click', () => {
+        const h = typeof randomBabelHash === 'function' ? randomBabelHash() : '0'.repeat(64);
+        loadHash(h);
+      });
+      slot.querySelector('[data-action="prev"]').addEventListener('click', () => {
+        const prev = typeof decrementBabelHash === 'function' ? decrementBabelHash(normHash(hashInput.value)) : null;
+        if (prev) loadHash(prev);
+      });
+      slot.querySelector('[data-action="next"]').addEventListener('click', () => {
+        const next = typeof incrementBabelHash === 'function' ? incrementBabelHash(normHash(hashInput.value)) : null;
+        if (next) loadHash(next);
+      });
+
+      volInput.addEventListener('input', () => {
+        if (gainNode) gainNode.gain.value = parseInt(volInput.value, 10) / 100;
+      });
+
+      panInput.addEventListener('input', () => {
+        if (pannerNode) pannerNode.pan.value = parseInt(panInput.value, 10) / 100;
+      });
+
+      hashInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadHash(hashInput.value); });
+
+      return {
+        el: slot,
+        audio,
+        play,
+        stop,
+        loadHash,
+        hashInput,
+        analyserNode: () => analyserNode,
+        vizCanvas,
+        vizTypeSelect,
+        getVizColor
+      };
+    }
+
+    function drawSlot(slot) {
+      const analyser = slot.analyserNode?.();
+      const canvas = slot.vizCanvas;
+      if (!canvas) return;
+      const ctx2d = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w <= 0 || h <= 0) return;
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      if (!analyser) {
+        ctx2d.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx2d.fillRect(0, 0, w, h);
+        return;
+      }
+      const color = slot.getVizColor();
+      const type = slot.vizTypeSelect.value;
+
+      if (type === 'waveform') {
+        const data = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(data);
+        ctx2d.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx2d.fillRect(0, 0, w, h);
+        ctx2d.strokeStyle = color;
+        ctx2d.lineWidth = 1.5;
+        ctx2d.beginPath();
+        const step = data.length / w;
+        for (let i = 0; i < w; i++) {
+          const v = data[Math.floor(i * step)] / 128;
+          const y = (1 - v) * h / 2;
+          if (i === 0) ctx2d.moveTo(i, y);
+          else ctx2d.lineTo(i, y);
+        }
+        ctx2d.stroke();
+      } else if (type === 'bars') {
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        ctx2d.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx2d.fillRect(0, 0, w, h);
+        const bars = Math.min(32, Math.floor(w / 4));
+        const barW = w / bars;
+        for (let i = 0; i < bars; i++) {
+          const idx = Math.floor((i / bars) * data.length);
+          const val = data[idx] / 255;
+          const barH = Math.max(2, val * h * 0.9);
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(i * barW + 1, h - barH, barW - 2, barH);
+        }
+      } else if (type === 'circle') {
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        ctx2d.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx2d.fillRect(0, 0, w, h);
+        const cx = w / 2;
+        const cy = h / 2;
+        const radius = Math.min(w, h) * 0.35;
+        const bars = 64;
+        ctx2d.strokeStyle = color;
+        ctx2d.lineWidth = 2;
+        for (let i = 0; i < bars; i++) {
+          const idx = Math.floor((i / bars) * data.length);
+          const val = data[idx] / 255;
+          const angle = (i / bars) * Math.PI * 2 - Math.PI / 2;
+          const r2 = radius + val * radius * 0.8;
+          const x2 = cx + Math.cos(angle) * r2;
+          const y2 = cy + Math.sin(angle) * r2;
+          const x1 = cx + Math.cos(angle) * radius;
+          const y1 = cy + Math.sin(angle) * radius;
+          ctx2d.beginPath();
+          ctx2d.moveTo(x1, y1);
+          ctx2d.lineTo(x2, y2);
+          ctx2d.stroke();
+        }
+      }
+    }
+
+    function vizLoop() {
+      slots.forEach(drawSlot);
+      requestAnimationFrame(vizLoop);
+    }
+
+    document.getElementById('master-volume').addEventListener('input', () => {
+      updateMasterVolume();
+    });
+
+    function updateMasterVolume() {
+      const v = parseInt(document.getElementById('master-volume').value, 10) / 100;
+      if (masterGain) masterGain.gain.value = v;
+    }
+
+    document.getElementById('play-all').addEventListener('click', () => {
+      initAudioContext();
+      if (ctx.state === 'suspended') ctx.resume();
+      slots.forEach((s) => s.play());
+    });
+
+    document.getElementById('stop-all').addEventListener('click', () => {
+      slots.forEach((s) => s.stop());
+    });
+
+    document.getElementById('random-all').addEventListener('click', () => {
+      slots.forEach((s) => {
+        const h = typeof randomBabelHash === 'function' ? randomBabelHash() : '0'.repeat(64);
+        s.loadHash(h);
+      });
+    });
+
+    const grid = document.getElementById('soundboard-grid');
+    for (let i = 0; i < SLOTS; i++) {
+      const slot = createSlot(i);
+      slots.push(slot);
+      grid.appendChild(slot.el);
+      const defaultHash = (i === 0 ? '0' : String(i)) + '0'.repeat(63);
+      slot.loadHash(defaultHash);
+    }
+
+    vizLoop();
+  </script>
+</body>
+</html>
