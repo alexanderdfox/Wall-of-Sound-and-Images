@@ -1326,6 +1326,59 @@ export async function onRequest(context) {
       }
     }
 
+    // GET /api/suggestions - list suggestions (public)
+    if (path === 'suggestions' && method === 'GET') {
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(50, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 20));
+      const offset = (page - 1) * per;
+      try {
+        const countRow = await db.prepare('SELECT COUNT(*) as c FROM suggestions').first();
+        const rows = await db.prepare(
+          'SELECT id, idea, author, created_at as createdAt FROM suggestions ORDER BY created_at DESC LIMIT ? OFFSET ?'
+        ).bind(per, offset).all();
+        const total = countRow?.c ?? 0;
+        return json({ items: rows.results || [], total, page, per });
+      } catch (e) {
+        if (/no such table: suggestions/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        throw e;
+      }
+    }
+
+    // POST /api/suggestions - submit an idea (public, optional auth)
+    if (path === 'suggestions' && method === 'POST') {
+      const suggestionsMaxBody = 4 * 1024;
+      const cl = parseInt(request.headers.get('content-length') || '0', 10);
+      if (cl > suggestionsMaxBody) return json({ error: 'Request too large' }, 413);
+      const body = await request.json().catch(() => ({}));
+      const stripCtl = (s) => String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      const idea = stripCtl(body?.idea).trim().slice(0, 500);
+      if (!idea || idea.length < 3) return json({ error: 'Idea required (3–500 chars)' }, 400);
+      let author = 'Anonymous';
+      let userId = null;
+      const token = getBearerToken(request);
+      if (token && env.JWT_SECRET) {
+        try {
+          const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+          if (payload?.sub) {
+            const user = await db.prepare('SELECT username FROM users WHERE id = ?').bind(payload.sub).first();
+            if (user?.username) author = '@' + user.username;
+            userId = payload.sub;
+          }
+        } catch (_) {}
+      }
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      try {
+        await db.prepare(
+          'INSERT INTO suggestions (id, idea, author, user_id, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(id, idea, author, userId, createdAt).run();
+        return json({ success: true, id, createdAt });
+      } catch (e) {
+        if (/no such table: suggestions/i.test(e?.message)) return json({ error: 'Suggestions not configured' }, 500);
+        throw e;
+      }
+    }
+
     // Helper: check if user is admin (username tchoff or env ADMIN_USERNAME)
     async function isAdmin(userId) {
       if (!userId) return false;
