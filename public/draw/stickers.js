@@ -22,9 +22,9 @@ function setInitialCanvasSize() {
         canvas.width = maxWidth;
         canvas.height = maxHeight;
     } else {
-        // Desktop: default size
-        canvas.width = 800;
-        canvas.height = 600;
+        // Desktop: default size 2048×2048
+        canvas.width = 2048;
+        canvas.height = 2048;
     }
     
     // Don't set explicit CSS size - let CSS handle it responsively
