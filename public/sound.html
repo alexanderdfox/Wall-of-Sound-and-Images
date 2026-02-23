@@ -101,12 +101,7 @@
       border-radius: var(--radius);
     }
     .sound-upload-section .btn { padding: 12px 24px; font-size: 0.95rem; }
-    .modal-content-sound { width: min(100%, 420px); }
-    .sound-source-panel { margin-bottom: 16px; }
-    .record-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-    .record-timer { font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted); }
-    .record-timer.recording { color: var(--danger); }
-    .record-hint { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+    .sound-upload-section a.btn { text-decoration: none; display: inline-block; }
   </style>
 </head>
 <body>
@@ -128,7 +123,8 @@
           <a href="/hashes.html" role="menuitem">Image Hashes</a>
           <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
           <a href="/themes.html" role="menuitem">Themes</a>
-          <a href="/#upload" role="menuitem">Upload</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
           <a href="/#hash" role="menuitem">View by Hash</a>
           <a href="/#auth" role="menuitem">Sign in / Account</a>
         </div>
@@ -163,49 +159,10 @@
     </div>
 
     <div class="sound-upload-section">
-      <button type="button" class="btn btn-primary" id="btn-upload-sound">Add sound (upload or record, max 30 sec)</button>
+      <a href="/#upload-audio" class="btn btn-primary" id="btn-upload-sound">Add sound (upload or record, max 30 sec)</a>
       <p style="margin-top:12px;font-size:0.875rem;color:var(--text-muted)">Sign in to add clips. Upload WAV/MP3/OGG or record from your microphone.</p>
     </div>
   </main>
-
-  <dialog class="modal" id="upload-sound-modal">
-    <div class="modal-content modal-content-sound">
-      <h2>Add Sound</h2>
-      <p class="modal-hint">Upload or record up to 30 seconds. Content-hashed to a permanent 64-char location.</p>
-      <form id="upload-sound-form">
-        <div class="upload-source-tabs">
-          <button type="button" class="upload-tab active" data-source="upload">Upload</button>
-          <button type="button" class="upload-tab" data-source="record">Record</button>
-        </div>
-        <div id="sound-upload-panel" class="sound-source-panel">
-          <div class="upload-dropzone" id="sound-dropzone">
-            <input type="file" id="sound-file-input" accept="audio/*,.mp3,.wav,.ogg,.webm,.m4a" hidden>
-            <span class="dropzone-text" id="sound-dropzone-text">Drop audio here or click to browse</span>
-          </div>
-        </div>
-        <div id="sound-record-panel" class="sound-source-panel" style="display:none">
-          <div class="record-controls">
-            <button type="button" class="btn btn-primary" id="btn-record-start">Start recording</button>
-            <button type="button" class="btn btn-ghost" id="btn-record-stop" disabled style="display:none">Stop</button>
-            <span id="record-timer" class="record-timer">0:00 / 0:30</span>
-          </div>
-          <p class="record-hint" id="record-status">Allow microphone access to record.</p>
-        </div>
-        <input type="text" id="sound-caption-input" placeholder="Caption (optional)">
-        <div class="visibility-wrap">
-          <label for="sound-visibility-select">Visibility</label>
-          <select id="sound-visibility-select">
-            <option value="public">Public (everyone)</option>
-            <option value="friends">Friends only</option>
-          </select>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="cancel-upload-sound">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="submit-upload-sound" disabled>Upload</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
 
   <script src="/hash-util.js"></script>
   <script src="/nav-dropdown.js"></script>
@@ -331,196 +288,7 @@
     const initialLoc = parseLocationFromUrl() || randomBabelHash();
     showSound(initialLoc);
 
-    document.getElementById('btn-upload-sound').addEventListener('click', () => {
-      if (!localStorage.getItem('tchoff_token')) {
-        alert('Sign in to upload sounds.');
-        window.location.href = '/';
-        return;
-      }
-      resetUploadModal();
-      document.getElementById('upload-sound-modal').showModal();
-    });
-
-    function resetUploadModal() {
-      selectedSoundFile = null;
-      soundFileInput.value = '';
-      soundDropzoneText.textContent = 'Drop audio here or click to browse';
-      document.getElementById('sound-caption-input').value = '';
-      document.getElementById('submit-upload-sound').disabled = true;
-      document.getElementById('submit-upload-sound').textContent = 'Upload';
-      stopRecording();
-      document.getElementById('sound-upload-panel').style.display = '';
-      document.getElementById('sound-record-panel').style.display = 'none';
-      document.querySelector('.upload-tab[data-source="upload"]')?.classList.add('active');
-      document.querySelector('.upload-tab[data-source="record"]')?.classList.remove('active');
-    }
-
-    document.querySelectorAll('#upload-sound-modal .upload-tab').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
-        document.querySelectorAll('#upload-sound-modal .upload-tab').forEach((t) => t.classList.remove('active'));
-        tab.classList.add('active');
-        const src = tab.dataset.source;
-        document.getElementById('sound-upload-panel').style.display = src === 'upload' ? '' : 'none';
-        document.getElementById('sound-record-panel').style.display = src === 'record' ? '' : 'none';
-        selectedSoundFile = null;
-        document.getElementById('submit-upload-sound').disabled = true;
-        document.getElementById('record-status').textContent = src === 'record' ? 'Allow microphone access to record.' : '';
-      });
-    });
-
-    const uploadModal = document.getElementById('upload-sound-modal');
-    document.getElementById('cancel-upload-sound').addEventListener('click', () => {
-      uploadModal.close();
-      resetUploadModal();
-    });
-    uploadModal.addEventListener('close', resetUploadModal);
-
-    const soundDropzone = document.getElementById('sound-dropzone');
-    const soundFileInput = document.getElementById('sound-file-input');
-    const soundDropzoneText = document.getElementById('sound-dropzone-text');
-    let selectedSoundFile = null;
-
-    soundDropzone.addEventListener('click', () => soundFileInput.click());
-    soundDropzone.addEventListener('dragover', (e) => { e.preventDefault(); soundDropzone.classList.add('dragover'); });
-    soundDropzone.addEventListener('dragleave', () => soundDropzone.classList.remove('dragover'));
-    soundDropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      soundDropzone.classList.remove('dragover');
-      const f = e.dataTransfer.files[0];
-      if (f && (f.type.startsWith('audio/') || /\.(mp3|wav|ogg|webm|m4a)$/i.test(f.name))) setSoundFile(f);
-    });
-    soundFileInput.addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (f) setSoundFile(f);
-    });
-
-    function setSoundFile(file) {
-      selectedSoundFile = file;
-      soundDropzoneText.textContent = file.name;
-      document.getElementById('submit-upload-sound').disabled = false;
-    }
-
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let recordTimerId = null;
-    const MAX_RECORD_SEC = 30;
-
-    function stopRecording() {
-      if (recordTimerId) {
-        clearInterval(recordTimerId);
-        recordTimerId = null;
-      }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        try { mediaRecorder.requestData(); } catch (_) {}
-        mediaRecorder.stop();
-      }
-      mediaRecorder = null;
-      document.getElementById('btn-record-start').disabled = false;
-      document.getElementById('btn-record-start').textContent = 'Start recording';
-      document.getElementById('btn-record-stop').style.display = 'none';
-      document.getElementById('record-timer').textContent = '0:00 / 0:30';
-      document.getElementById('record-timer').classList.remove('recording');
-    }
-
-    document.getElementById('btn-record-start').addEventListener('click', async () => {
-      try {
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-        } catch (_) {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        }
-        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a'].find((m) => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
-        try {
-          mediaRecorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 128000 });
-        } catch (_) {
-          try {
-            mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-          } catch (_) {
-            mediaRecorder = new MediaRecorder(stream);
-          }
-        }
-        const blobType = mediaRecorder.mimeType || mime;
-        recordedChunks = [];
-        mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          if (recordedChunks.length) {
-            const blob = new Blob(recordedChunks, { type: blobType });
-            const ext = blobType.includes('webm') ? 'webm' : blobType.includes('mp4') ? 'm4a' : 'ogg';
-            selectedSoundFile = new File([blob], `recording-${Date.now()}.${ext}`, { type: blob.type });
-            document.getElementById('submit-upload-sound').disabled = false;
-            document.getElementById('record-status').textContent = 'Recording ready. Click Upload to save.';
-          } else {
-            document.getElementById('record-status').textContent = 'Recording too short. Try again.';
-          }
-        };
-        mediaRecorder.start(1000);
-        document.getElementById('btn-record-start').disabled = true;
-        document.getElementById('btn-record-start').textContent = 'Recording…';
-        document.getElementById('btn-record-stop').style.display = '';
-        document.getElementById('btn-record-stop').disabled = false;
-        document.getElementById('record-status').textContent = 'Recording…';
-        document.getElementById('record-timer').classList.add('recording');
-        let elapsed = 0;
-        recordTimerId = setInterval(() => {
-          elapsed++;
-          const m = Math.floor(elapsed / 60);
-          const s = elapsed % 60;
-          document.getElementById('record-timer').textContent = `${m}:${s.toString().padStart(2, '0')} / 0:${MAX_RECORD_SEC}`;
-          if (elapsed >= MAX_RECORD_SEC) stopRecording();
-        }, 1000);
-      } catch (err) {
-        document.getElementById('record-status').textContent = 'Microphone access denied.';
-        alert('Could not access microphone. Please allow access and try again.');
-      }
-    });
-
-    document.getElementById('btn-record-stop').addEventListener('click', stopRecording);
-
-    document.getElementById('upload-sound-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!selectedSoundFile) return;
-      const btn = document.getElementById('submit-upload-sound');
-      btn.disabled = true;
-      btn.textContent = 'Uploading…';
-      try {
-        const objectUrl = URL.createObjectURL(selectedSoundFile);
-        const duration = await new Promise((res) => {
-          const a = new Audio();
-          a.onloadedmetadata = () => res(a.duration);
-          a.onerror = () => res(0);
-          a.src = objectUrl;
-        });
-        URL.revokeObjectURL(objectUrl);
-        if (duration > 30) {
-          alert('Audio must be 30 seconds or less');
-          btn.disabled = false;
-          btn.textContent = 'Upload';
-          return;
-        }
-        const form = new FormData();
-        form.append('audio', selectedSoundFile);
-        form.append('caption', document.getElementById('sound-caption-input').value || '');
-        form.append('visibility', document.getElementById('sound-visibility-select').value || 'public');
-        form.append('duration', Math.round(duration));
-        const res = await fetch(`${API}/upload-sound`, {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('tchoff_token') },
-          body: form,
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Upload failed');
-        document.getElementById('upload-sound-modal').close();
-        resetUploadModal();
-        if (data.hash) showSound(data.hash);
-      } catch (err) {
-        alert(err.message);
-      }
-      btn.disabled = false;
-      btn.textContent = 'Upload';
-    });
+    // Add sound: link to /#upload-audio opens unified upload modal on main feed
   </script>
 </body>
 </html>

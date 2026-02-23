@@ -29,7 +29,8 @@
           <a href="/hashes.html" role="menuitem">Image Hashes</a>
           <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
           <a href="/themes.html" role="menuitem">Themes</a>
-          <a href="/#upload" role="menuitem">Upload</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
           <a href="/#hash" role="menuitem">View by Hash</a>
           <a href="/#auth" role="menuitem">Sign in / Account</a>
         </div>
@@ -70,6 +71,7 @@
   <!-- Auth modal -->
   <dialog class="modal" id="auth-modal">
     <div class="modal-content">
+      <button type="button" class="btn-close" id="close-auth" aria-label="Close">×</button>
       <h2 id="auth-title">Sign in</h2>
       <p class="modal-hint" id="auth-hint">Create an account with your email to upload images.</p>
       <div id="auth-logged-in" style="display:none">
@@ -123,12 +125,18 @@
     </div>
   </dialog>
 
-  <!-- Upload modal -->
+  <!-- Upload modal (Image + Audio) -->
   <dialog class="modal" id="upload-modal">
-    <div class="modal-content">
-      <h2>Upload Image</h2>
-      <p class="modal-hint">Take a photo or choose from library. HEIC from iPhone/iPad supported.</p>
-      <form id="upload-form">
+    <div class="modal-content modal-content-upload">
+      <button type="button" class="btn-close" id="close-upload" aria-label="Close">×</button>
+      <h2>Upload Media</h2>
+      <div class="upload-media-tabs">
+        <button type="button" class="upload-media-tab active" data-type="image" title="Images, HEIC supported">📷 Image</button>
+        <button type="button" class="upload-media-tab" data-type="audio" title="Audio up to 30 sec">🎵 Audio</button>
+      </div>
+
+      <div id="upload-image-panel" class="upload-type-panel">
+        <p class="modal-hint">Take a photo or choose from library. HEIC from iPhone/iPad supported.</p>
         <div class="upload-source-tabs">
           <button type="button" class="upload-tab active" data-source="browse">Browse</button>
           <button type="button" class="upload-tab" data-source="camera">Take Photo</button>
@@ -143,6 +151,31 @@
           </div>
           <span class="dropzone-text" id="dropzone-text">Drop image here or click to browse</span>
         </div>
+      </div>
+
+      <div id="upload-audio-panel" class="upload-type-panel" style="display:none">
+        <p class="modal-hint">Upload a file or record up to 30 seconds. MP3, WAV, M4A, WebM supported.</p>
+        <div class="upload-source-tabs">
+          <button type="button" class="upload-tab active" data-source="upload">Upload file</button>
+          <button type="button" class="upload-tab" data-source="record">Record</button>
+        </div>
+        <div id="sound-upload-panel" class="sound-source-panel">
+          <div class="upload-dropzone" id="sound-dropzone">
+            <input type="file" id="sound-file-input" accept="audio/*,.mp3,.wav,.ogg,.webm,.m4a,video/*" hidden>
+            <span class="dropzone-text" id="sound-dropzone-text">Drop audio or video here or click to browse</span>
+          </div>
+        </div>
+        <div id="sound-record-panel" class="sound-source-panel" style="display:none">
+          <div class="record-controls">
+            <button type="button" class="btn btn-primary" id="btn-record-start">Start recording</button>
+            <button type="button" class="btn btn-ghost" id="btn-record-stop" disabled style="display:none">Stop</button>
+            <span id="record-timer" class="record-timer">0:00 / 0:30</span>
+          </div>
+          <p class="record-hint" id="record-status">Allow microphone access to record.</p>
+        </div>
+      </div>
+
+      <form id="upload-form">
         <input type="text" id="caption-input" placeholder="Caption (optional)">
         <div class="visibility-wrap">
           <label for="visibility-select">Visibility</label>
@@ -165,6 +198,7 @@
   <!-- View by hash modal -->
   <dialog class="modal" id="hash-modal">
     <div class="modal-content">
+      <button type="button" class="btn-close" id="close-hash" aria-label="Close">×</button>
       <h2>Babelia Lookup</h2>
       <p class="modal-hint">Enter # (number) or 64-char Babelia location. Drop image (HEIC supported) to compute.</p>
       <div class="hash-dropzone" id="hash-dropzone">Drop image to compute Babelia location</div>

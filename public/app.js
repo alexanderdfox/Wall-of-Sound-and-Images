@@ -16,8 +16,17 @@ const submitUpload = document.getElementById('submit-upload');
 const hashInput = document.getElementById('hash-input');
 const hashResult = document.getElementById('hash-result');
 const lightboxBody = document.getElementById('lightbox-body');
+const soundDropzone = document.getElementById('sound-dropzone');
+const soundFileInput = document.getElementById('sound-file-input');
+const soundDropzoneText = document.getElementById('sound-dropzone-text');
+const usernameWrap = document.getElementById('username-wrap');
 
 let selectedFile = null;
+let selectedSoundFile = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordTimerId = null;
+const MAX_RECORD_SEC = 30;
 let currentUser = null;
 let authToken = localStorage.getItem('tchoff_token');
 
@@ -98,6 +107,10 @@ function renderPagination(total, page) {
 // escapeHtml and openPost are provided by app-common.js
 
 // Upload
+function isImageTabActive() {
+  return document.querySelector('.upload-media-tab[data-type="image"]')?.classList.contains('active');
+}
+
 document.getElementById('btn-upload').addEventListener('click', () => {
   if (!authToken) {
     authModal.showModal();
@@ -105,14 +118,40 @@ document.getElementById('btn-upload').addEventListener('click', () => {
     document.getElementById('auth-forms').style.display = 'block';
     return;
   }
+  switchUploadMediaTab('image');
   uploadModal.showModal();
   resetUploadForm();
 });
 
 document.getElementById('cancel-upload').addEventListener('click', () => {
   stopCamera();
+  stopRecording();
   uploadModal.close();
 });
+document.getElementById('close-upload')?.addEventListener('click', () => {
+  stopCamera();
+  stopRecording();
+  uploadModal.close();
+});
+
+// Media tabs: Image | Audio
+document.querySelectorAll('.upload-media-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    switchUploadMediaTab(tab.dataset.type);
+    resetUploadForm();
+  });
+});
+
+function switchUploadMediaTab(type) {
+  document.querySelectorAll('.upload-media-tab').forEach((t) => t.classList.toggle('active', t.dataset.type === type));
+  const imagePanel = document.getElementById('upload-image-panel');
+  const audioPanel = document.getElementById('upload-audio-panel');
+  if (imagePanel) imagePanel.style.display = type === 'image' ? '' : 'none';
+  if (audioPanel) audioPanel.style.display = type === 'audio' ? '' : 'none';
+  // Username: show for Image when not logged in (anonymous); always hide for Audio (uses auth)
+  if (usernameWrap) usernameWrap.style.display = type === 'image' && !currentUser ? '' : 'none';
+  submitUpload.disabled = true;
+}
 
 dropzone.addEventListener('click', (e) => {
   if (e.target.closest('#camera-container')) return;
@@ -124,29 +163,45 @@ const isMobileDevice = () => 'ontouchstart' in window || navigator.maxTouchPoint
 
 document.querySelectorAll('.upload-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.upload-tab').forEach((t) => t.classList.remove('active'));
+    const panel = tab.closest('#upload-image-panel') || tab.closest('#upload-audio-panel');
+    if (!panel) return;
+    const isImage = !!tab.closest('#upload-image-panel');
+    const tabsInPanel = panel.querySelectorAll('.upload-tab');
+    tabsInPanel.forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
-    const source = tab.dataset.source;
-    const dropzoneText = document.getElementById('dropzone-text');
-    const cameraContainer = document.getElementById('camera-container');
-    const cameraInput = document.getElementById('camera-input');
-    if (source === 'camera') {
-      if (isMobileDevice() && cameraInput) {
-        stopCamera();
-        cameraContainer.style.display = 'none';
-        dropzoneText.style.display = 'block';
-        dropzoneText.textContent = 'Tap Take Photo to open camera…';
-        cameraInput.click();
+
+    if (isImage) {
+      const source = tab.dataset.source;
+      const dropzoneText = document.getElementById('dropzone-text');
+      const cameraContainer = document.getElementById('camera-container');
+      const cameraInput = document.getElementById('camera-input');
+      if (source === 'camera') {
+        if (isMobileDevice() && cameraInput) {
+          stopCamera();
+          if (cameraContainer) cameraContainer.style.display = 'none';
+          if (dropzoneText) { dropzoneText.style.display = 'block'; dropzoneText.textContent = 'Tap Take Photo to open camera…'; }
+          cameraInput?.click();
+        } else {
+          if (dropzoneText) dropzoneText.style.display = 'none';
+          if (cameraContainer) cameraContainer.style.display = 'block';
+          startCamera();
+        }
       } else {
-        dropzoneText.style.display = 'none';
-        cameraContainer.style.display = 'block';
-        startCamera();
+        stopCamera();
+        if (cameraContainer) cameraContainer.style.display = 'none';
+        if (dropzoneText) { dropzoneText.style.display = 'block'; dropzoneText.textContent = 'Drop image here or click to browse'; }
       }
     } else {
-      stopCamera();
-      cameraContainer.style.display = 'none';
-      dropzoneText.style.display = 'block';
-      dropzoneText.textContent = 'Drop image here or click to browse';
+      stopRecording();
+      const uploadPanel = document.getElementById('sound-upload-panel');
+      const recordPanel = document.getElementById('sound-record-panel');
+      const recordStatus = document.getElementById('record-status');
+      const src = tab.dataset.source;
+      if (uploadPanel) uploadPanel.style.display = src === 'upload' ? '' : 'none';
+      if (recordPanel) recordPanel.style.display = src === 'record' ? '' : 'none';
+      selectedSoundFile = null;
+      submitUpload.disabled = true;
+      if (recordStatus) recordStatus.textContent = src === 'record' ? 'Allow microphone access to record.' : '';
     }
   });
 });
@@ -185,6 +240,21 @@ function stopCamera() {
   }
   const video = document.getElementById('camera-preview');
   if (video) video.srcObject = null;
+}
+
+function stopRecording() {
+  if (recordTimerId) { clearInterval(recordTimerId); recordTimerId = null; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.requestData(); } catch (_) {}
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+  const btnStart = document.getElementById('btn-record-start');
+  const btnStop = document.getElementById('btn-record-stop');
+  const timer = document.getElementById('record-timer');
+  if (btnStart) { btnStart.disabled = false; btnStart.textContent = 'Start recording'; }
+  if (btnStop) btnStop.style.display = 'none';
+  if (timer) { timer.textContent = '0:00 / 0:30'; timer.classList.remove('recording'); }
 }
 
 document.getElementById('capture-btn')?.addEventListener('click', async () => {
@@ -233,6 +303,86 @@ fileInput.addEventListener('change', (e) => {
   if (file) setFile(file);
 });
 
+// Sound dropzone & file input
+if (soundDropzone) {
+  soundDropzone.addEventListener('click', () => soundFileInput?.click());
+  soundDropzone.addEventListener('dragover', (e) => { e.preventDefault(); soundDropzone.classList.add('dragover'); });
+  soundDropzone.addEventListener('dragleave', () => soundDropzone.classList.remove('dragover'));
+  soundDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    soundDropzone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && (f.type.startsWith('audio/') || f.type.startsWith('video/') || /\.(mp3|wav|ogg|webm|m4a|mp4|webm)$/i.test(f.name))) setSoundFile(f);
+  });
+}
+if (soundFileInput) {
+  soundFileInput.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f) setSoundFile(f);
+  });
+}
+
+function setSoundFile(file) {
+  selectedSoundFile = file;
+  if (soundDropzoneText) soundDropzoneText.textContent = file.name;
+  submitUpload.disabled = false;
+}
+
+// Record button
+document.getElementById('btn-record-start')?.addEventListener('click', async () => {
+  try {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } }); }
+    catch (_) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a'].find((m) => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
+    try { mediaRecorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 128000 }); }
+    catch (_) {
+      try { mediaRecorder = new MediaRecorder(stream, { mimeType: mime }); }
+      catch (_) { mediaRecorder = new MediaRecorder(stream); }
+    }
+    const blobType = mediaRecorder.mimeType || mime;
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      if (recordedChunks.length) {
+        const blob = new Blob(recordedChunks, { type: blobType });
+        const ext = blobType.includes('webm') ? 'webm' : blobType.includes('mp4') ? 'm4a' : 'ogg';
+        selectedSoundFile = new File([blob], `recording-${Date.now()}.${ext}`, { type: blob.type });
+        submitUpload.disabled = false;
+        const recordStatus = document.getElementById('record-status');
+        if (recordStatus) recordStatus.textContent = 'Recording ready. Click Upload to save.';
+      } else {
+        const recordStatus = document.getElementById('record-status');
+        if (recordStatus) recordStatus.textContent = 'Recording too short. Try again.';
+      }
+    };
+    mediaRecorder.start(1000);
+    const btnStart = document.getElementById('btn-record-start');
+    const btnStop = document.getElementById('btn-record-stop');
+    const recordStatus = document.getElementById('record-status');
+    const timer = document.getElementById('record-timer');
+    if (btnStart) { btnStart.disabled = true; btnStart.textContent = 'Recording…'; }
+    if (btnStop) { btnStop.style.display = ''; btnStop.disabled = false; }
+    if (recordStatus) recordStatus.textContent = 'Recording…';
+    if (timer) { timer.classList.add('recording'); }
+    let elapsed = 0;
+    recordTimerId = setInterval(() => {
+      elapsed++;
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      if (timer) timer.textContent = `${m}:${s.toString().padStart(2, '0')} / 0:${MAX_RECORD_SEC}`;
+      if (elapsed >= MAX_RECORD_SEC) stopRecording();
+    }, 1000);
+  } catch (err) {
+    const recordStatus = document.getElementById('record-status');
+    if (recordStatus) recordStatus.textContent = 'Microphone access denied.';
+    alert('Could not access microphone. Please allow access and try again.');
+  }
+});
+
+document.getElementById('btn-record-stop')?.addEventListener('click', stopRecording);
+
 function setFile(file) {
   selectedFile = file;
   dropzone.querySelector('.dropzone-text').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
@@ -241,26 +391,84 @@ function setFile(file) {
 
 function resetUploadForm() {
   selectedFile = null;
-  fileInput.value = '';
+  selectedSoundFile = null;
+  if (fileInput) fileInput.value = '';
+  if (soundFileInput) soundFileInput.value = '';
   captionInput.value = '';
   usernameInput.value = 'anonymous';
   const visSelect = document.getElementById('visibility-select');
   if (visSelect) visSelect.value = 'public';
   stopCamera();
-  document.getElementById('camera-container').style.display = 'none';
-  document.getElementById('dropzone-text').style.display = 'block';
-  document.querySelector('.upload-tab[data-source="browse"]')?.classList.add('active');
-  document.querySelector('.upload-tab[data-source="camera"]')?.classList.remove('active');
-  dropzone.querySelector('.dropzone-text').textContent = 'Drop image here or click to browse';
+  stopRecording();
+  const cameraContainer = document.getElementById('camera-container');
+  const dropzoneText = document.getElementById('dropzone-text');
+  if (cameraContainer) cameraContainer.style.display = 'none';
+  if (dropzoneText) { dropzoneText.style.display = 'block'; dropzoneText.textContent = 'Drop image here or click to browse'; }
+  document.querySelector('#upload-image-panel .upload-tab[data-source="browse"]')?.classList.add('active');
+  document.querySelector('#upload-image-panel .upload-tab[data-source="camera"]')?.classList.remove('active');
+  document.getElementById('sound-upload-panel')?.style.setProperty('display', '');
+  document.getElementById('sound-record-panel')?.style.setProperty('display', 'none');
+  document.querySelector('#upload-audio-panel .upload-tab[data-source="upload"]')?.classList.add('active');
+  document.querySelector('#upload-audio-panel .upload-tab[data-source="record"]')?.classList.remove('active');
+  if (soundDropzoneText) soundDropzoneText.textContent = 'Drop audio or video here or click to browse';
+  const recordStatus = document.getElementById('record-status');
+  if (recordStatus) recordStatus.textContent = 'Allow microphone access to record.';
   submitUpload.disabled = true;
+  submitUpload.textContent = 'Upload';
 }
 
 document.getElementById('upload-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!selectedFile) return;
+  const isImage = isImageTabActive();
+  if (isImage && !selectedFile) return;
+  if (!isImage && !selectedSoundFile) return;
 
   submitUpload.disabled = true;
-  submitUpload.textContent = 'Computing hash…';
+  if (isImage) {
+    submitUpload.textContent = 'Computing hash…';
+  } else {
+    submitUpload.textContent = 'Uploading…';
+  }
+
+  if (!isImage) {
+    try {
+      const objectUrl = URL.createObjectURL(selectedSoundFile);
+      const duration = await new Promise((res) => {
+        const a = new Audio();
+        a.onloadedmetadata = () => res(a.duration);
+        a.onerror = () => res(0);
+        a.src = objectUrl;
+      });
+      URL.revokeObjectURL(objectUrl);
+      if (duration > 30) {
+        alert('Audio must be 30 seconds or less');
+        submitUpload.disabled = false;
+        submitUpload.textContent = 'Upload';
+        return;
+      }
+      const form = new FormData();
+      form.append('audio', selectedSoundFile);
+      form.append('caption', captionInput.value || '');
+      form.append('visibility', document.getElementById('visibility-select')?.value || 'public');
+      form.append('duration', Math.round(duration));
+      const res = await fetch(`${API}/upload-sound`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + authToken },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      uploadModal.close();
+      resetUploadForm();
+      if (data.hash) window.location.href = `/sound.html#${data.hash}`;
+      else loadFeed();
+    } catch (err) {
+      alert(err.message);
+    }
+    submitUpload.disabled = false;
+    submitUpload.textContent = 'Upload';
+    return;
+  }
 
   try {
     submitUpload.textContent = 'Computing hash & Babelia…';
@@ -370,6 +578,7 @@ hashDropzone.addEventListener('drop', async (e) => {
 });
 
 document.getElementById('cancel-hash').addEventListener('click', () => hashModal.close());
+document.getElementById('close-hash')?.addEventListener('click', () => hashModal.close());
 
 document.getElementById('hash-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -485,7 +694,8 @@ document.getElementById('auth-username-save').addEventListener('click', async ()
   }
 });
 document.getElementById('cancel-auth').addEventListener('click', () => authModal.close());
-document.getElementById('cancel-auth-signup').addEventListener('click', () => authModal.close());
+    document.getElementById('cancel-auth-signup').addEventListener('click', () => authModal.close());
+    document.getElementById('close-auth')?.addEventListener('click', () => authModal.close());
 
 async function loadFriends() {
   if (!authToken) return;
@@ -698,11 +908,39 @@ checkAuth().then(() => {
   }
 });
 
-// Open modal from hash link (e.g. /#upload, /#hash)
-const hash = window.location.hash.slice(1);
-if (hash === 'upload') {
-  uploadModal.showModal();
+uploadModal.addEventListener('close', () => {
+  stopCamera();
+  stopRecording();
   resetUploadForm();
+});
+
+function openUploadModalFromHash() {
+  const hash = window.location.hash.slice(1).toLowerCase();
+  if (hash === 'upload' || hash === 'upload-audio') {
+    if (!authToken) {
+      authModal.showModal();
+      document.getElementById('auth-logged-in').style.display = 'none';
+      document.getElementById('auth-forms').style.display = 'block';
+    } else {
+      switchUploadMediaTab(hash === 'upload-audio' ? 'audio' : 'image');
+      uploadModal.showModal();
+      resetUploadForm();
+    }
+  }
+}
+
+// Open modal from hash link (e.g. /#upload, /#upload-audio, /#hash)
+const hash = window.location.hash.slice(1).toLowerCase();
+if (hash === 'upload' || hash === 'upload-audio') {
+  if (!authToken) {
+    authModal.showModal();
+    document.getElementById('auth-logged-in').style.display = 'none';
+    document.getElementById('auth-forms').style.display = 'block';
+  } else {
+    switchUploadMediaTab(hash === 'upload-audio' ? 'audio' : 'image');
+    uploadModal.showModal();
+    resetUploadForm();
+  }
   history.replaceState(null, '', window.location.pathname);
 } else if (hash === 'hash') {
   hashModal.showModal();
@@ -714,3 +952,8 @@ if (hash === 'upload') {
   authModal.showModal();
   history.replaceState(null, '', window.location.pathname);
 }
+
+window.addEventListener('hashchange', () => {
+  const h = window.location.hash.slice(1).toLowerCase();
+  if (h === 'upload' || h === 'upload-audio') openUploadModalFromHash();
+});
