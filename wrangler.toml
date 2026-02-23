@@ -13,7 +13,7 @@ binding = "DB"
 database_name = "tchoff-db"
 database_id = "b262192d-8bc7-4c65-8890-0f60584acede"
 
-# Babelia 1600×1600 PNG storage (matches images correctly)
+# Babelia 2048×2048 PNG storage (matches images correctly)
 [[kv_namespaces]]
 binding = "BABEL_IMAGES"
 id = "3255ba55a70d4d7f9f024b9ff293682c"

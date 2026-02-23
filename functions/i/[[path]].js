@@ -127,11 +127,11 @@ function placeholderSvg(num, babelHash) {
   const short = babelHash ? String(babelHash).replace(/[<>"&]/g, '') : '';
   const safe = short.slice(0, 16) + (short.length > 16 ? '…' : '');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1600" height="1600" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1600" height="1600" fill="#1a1a2e"/>
-  <text x="800" y="580" font-family="system-ui,sans-serif" font-size="320" font-weight="bold" fill="#eee" text-anchor="middle">#${num}</text>
-  <text x="800" y="820" font-family="monospace" font-size="24" fill="#6c7a89" text-anchor="middle">babelia: ${safe}</text>
-  <text x="800" y="920" font-family="system-ui,sans-serif" font-size="18" fill="#4a5568" text-anchor="middle">babelia.libraryofbabel.info</text>
+<svg width="2048" height="2048" xmlns="http://www.w3.org/2000/svg">
+  <rect width="2048" height="2048" fill="#1a1a2e"/>
+  <text x="1024" y="742" font-family="system-ui,sans-serif" font-size="410" font-weight="bold" fill="#eee" text-anchor="middle">#${num}</text>
+  <text x="1024" y="1050" font-family="monospace" font-size="31" fill="#6c7a89" text-anchor="middle">babelia: ${safe}</text>
+  <text x="1024" y="1178" font-family="system-ui,sans-serif" font-size="23" fill="#4a5568" text-anchor="middle">babelia.libraryofbabel.info</text>
 </svg>`;
 }
 

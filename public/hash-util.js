@@ -1,4 +1,4 @@
-const BABELIA_SIZE = 1600;
+const BABELIA_SIZE = 2048;
 const IMAGE_MAX = 4096;
 
 /** Convert HEIC/HEIF to JPEG blob for canvas (browsers can't read HEIC natively) */
@@ -81,7 +81,7 @@ async function hashImageAtSize(source, maxSize = IMAGE_MAX) {
 }
 
 /**
- * Babelia: 1600×1600, 24-bit RGB. Resize to fill (crop). Returns { babelHash, pngBlob }.
+ * Babelia: 2048×2048, 24-bit RGB. Resize to fill (crop). Returns { babelHash, pngBlob }.
  * For Cloudflare: client computes, sends PNG to store in R2.
  */
 async function computeBabelia(source) {
@@ -137,7 +137,7 @@ async function computeBabelia(source) {
  * Generate deterministic image from Babel hash (64 hex chars).
  * Uses hash as seed for pixel generation - same hash always yields same image.
  */
-function generateImageFromBabelHash(babelHash, size = 1600) {
+function generateImageFromBabelHash(babelHash, size = 2048) {
   const h = String(babelHash || '').toLowerCase().replace(/[^a-f0-9]/g, '');
   if (h.length !== 64) return null;
   const seed = new Uint32Array(4);
@@ -264,7 +264,7 @@ function randomBabelHash() {
 /**
  * Check if an image exists in storage by computing its hash
  */
-async function findImageByHash(source, size = 1600) {
+async function findImageByHash(source, size = 2048) {
   const hash = await hashImageAtSize(source, size);
   const res = await fetch(`/api/exists/${hash}`);
   const data = await res.json();

@@ -538,6 +538,29 @@ export async function onRequest(context) {
       return json({ items: rows.results || [], count: (rows.results || []).length });
     }
 
+    // GET /api/sound-hashes - full sound hash database (like /api/hashes for images)
+    if (path === 'sound-hashes' && method === 'GET') {
+      try {
+        const rows = await db.prepare(
+          `SELECT s.num, s.hash, s.caption, s.duration, s.created_at as createdAt, s.visibility, u.username
+           FROM sounds s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.num ASC`
+        ).all();
+        const items = (rows.results || []).map((r) => ({
+          num: r.num,
+          hash: r.hash,
+          caption: r.caption || '',
+          duration: r.duration ?? 0,
+          createdAt: r.createdAt,
+          visibility: r.visibility || 'public',
+          username: r.username || '—',
+        }));
+        return json({ items, count: items.length });
+      } catch (e) {
+        if (/no such table: sounds/i.test(e?.message)) return json({ items: [], count: 0 });
+        throw e;
+      }
+    }
+
     // GET /api/hashes
     if (path === 'hashes' && method === 'GET') {
       const rows = await db.prepare(

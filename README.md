@@ -1,10 +1,10 @@
 # Tchoff — Hash-Based Image Gallery
 
-Store images once. Each size (100, 200, 400, 800, 1600) gets a unique hash that matches the JavaScript equivalent (raw RGBA → SHA-256).
+Store images once. Each size (100, 200, 400, 800, 2048) gets a unique hash that matches the JavaScript equivalent (raw RGBA → SHA-256).
 
 ## How it works
 
-- **Upload**: Image normalized to 1600×1600, stored by content hash. Variants at each size get unique hashes.
+- **Upload**: Image normalized to 2048×2048, stored by content hash. Variants at each size get unique hashes.
 - **Retrieve**: `/i/:hash` or `/i/:baseHash?size=400`. Client can hash image data and find matches.
 - **JS-compatible**: Same algorithm server (sharp) and client (canvas + crypto.subtle).
 
@@ -65,7 +65,7 @@ npm run cf:deploy      # deploy to Cloudflare Pages
 | `GET /i/n/:num` | Generate image on fly. `?format=json` for `{ num, hash }` |
 | `GET /i/:hash` | Generate image on fly. `?format=json` for `{ num, hash }` |
 | `POST /api/upload` | Upload image; pixel-per-pixel match, assign number, discard file |
-| `GET /api/catalog` | List every unique 1600×1600 image (num, hash) |
+| `GET /api/catalog` | List every unique 2048×2048 image (num, hash) |
 | `GET /api/feed` | List all posts with variants |
 | `GET /api/post/n/:num` | Get post by number |
 | `GET /api/post/:hash` | Get post by hash |
