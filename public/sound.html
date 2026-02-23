@@ -126,6 +126,13 @@
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
         </svg>
       </a>
+      <a href="/dj.html" class="btn-icon" title="DJ Table">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="8" height="16" rx="1"/>
+          <rect x="14" y="4" width="8" height="16" rx="1"/>
+          <path d="M10 8h4M10 12h4M10 16h4"/>
+        </svg>
+      </a>
       <a href="/hashes.html" class="btn-icon" title="Hash database">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -429,6 +436,7 @@
         recordTimerId = null;
       }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.requestData(); } catch (_) {}
         mediaRecorder.stop();
       }
       mediaRecorder = null;
@@ -448,14 +456,23 @@
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         }
         const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a'].find((m) => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
-        mediaRecorder = new MediaRecorder(stream);
+        try {
+          mediaRecorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 128000 });
+        } catch (_) {
+          try {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+          } catch (_) {
+            mediaRecorder = new MediaRecorder(stream);
+          }
+        }
+        const blobType = mediaRecorder.mimeType || mime;
         recordedChunks = [];
         mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
           if (recordedChunks.length) {
-            const blob = new Blob(recordedChunks, { type: mime });
-            const ext = mime.includes('webm') ? 'webm' : mime.includes('mp4') ? 'm4a' : 'ogg';
+            const blob = new Blob(recordedChunks, { type: blobType });
+            const ext = blobType.includes('webm') ? 'webm' : blobType.includes('mp4') ? 'm4a' : 'ogg';
             selectedSoundFile = new File([blob], `recording-${Date.now()}.${ext}`, { type: blob.type });
             document.getElementById('submit-upload-sound').disabled = false;
             document.getElementById('record-status').textContent = 'Recording ready. Click Upload to save.';
@@ -463,7 +480,7 @@
             document.getElementById('record-status').textContent = 'Recording too short. Try again.';
           }
         };
-        mediaRecorder.start(250);
+        mediaRecorder.start(1000);
         document.getElementById('btn-record-start').disabled = true;
         document.getElementById('btn-record-start').textContent = 'Recording…';
         document.getElementById('btn-record-stop').style.display = '';
