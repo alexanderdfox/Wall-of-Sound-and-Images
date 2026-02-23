@@ -140,6 +140,97 @@ export async function onRequest(context) {
       return json({ success: true, user: { id: payload.sub, username } });
     }
 
+    // GET /api/themes - list user's themes + active theme
+    if (path === 'themes' && method === 'GET') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ themes: [], active: null });
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ themes: [], active: null });
+      try {
+        const rows = await db.prepare(
+          'SELECT name, colors, is_active FROM user_themes WHERE user_id = ? ORDER BY name'
+        ).bind(payload.sub).all();
+        const themes = (rows.results || []).map((r) => {
+          let colors = {};
+          try { colors = typeof r.colors === 'string' ? JSON.parse(r.colors) : (r.colors || {}); } catch (_) {}
+          return { name: r.name, colors };
+        });
+        const activeRow = (rows.results || []).find((r) => r.is_active);
+        let active = null;
+        if (activeRow) {
+          try { active = { name: activeRow.name, colors: typeof activeRow.colors === 'string' ? JSON.parse(activeRow.colors) : (activeRow.colors || {}) }; } catch (_) {}
+        }
+        return json({ themes, active });
+      } catch (e) {
+        if (/no such table: user_themes/i.test(e?.message)) return json({ themes: [], active: null });
+        throw e;
+      }
+    }
+
+    // POST /api/themes - save theme, optionally set as active
+    if (path === 'themes' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const body = await request.json().catch(() => ({}));
+      const name = (body?.name || 'Unnamed').toString().trim().slice(0, 80);
+      const colors = body?.colors || {};
+      const setActive = body?.active !== false;
+      if (!name) return json({ error: 'Theme name required' }, 400);
+      const colorsStr = JSON.stringify(colors);
+      const createdAt = new Date().toISOString();
+      try {
+        await db.prepare(
+          'INSERT INTO user_themes (id, user_id, name, colors, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, name) DO UPDATE SET colors = excluded.colors, is_active = excluded.is_active'
+        ).bind(crypto.randomUUID(), payload.sub, name, colorsStr, setActive ? 1 : 0, createdAt).run();
+        if (setActive) {
+          await db.prepare('UPDATE user_themes SET is_active = 0 WHERE user_id = ?').bind(payload.sub).run();
+          await db.prepare('UPDATE user_themes SET is_active = 1 WHERE user_id = ? AND name = ?').bind(payload.sub, name).run();
+        }
+        return json({ success: true, theme: { name, colors } });
+      } catch (e) {
+        if (/no such table: user_themes/i.test(e?.message)) return json({ error: 'Themes not available' }, 503);
+        throw e;
+      }
+    }
+
+    // DELETE /api/themes/:name
+    if (path.startsWith('themes/') && method === 'DELETE') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const name = decodeURIComponent(path.slice(7)).trim().slice(0, 80);
+      if (!name) return json({ error: 'Theme name required' }, 400);
+      try {
+        await db.prepare('DELETE FROM user_themes WHERE user_id = ? AND name = ?').bind(payload.sub, name).run();
+        return json({ success: true });
+      } catch (e) {
+        if (/no such table: user_themes/i.test(e?.message)) return json({ success: true });
+        throw e;
+      }
+    }
+
+    // PATCH /api/themes/active - set active theme
+    if (path === 'themes/active' && method === 'PATCH') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+      const body = await request.json().catch(() => ({}));
+      const name = (body?.name || '').toString().trim().slice(0, 80);
+      if (!name) return json({ error: 'Theme name required' }, 400);
+      try {
+        await db.prepare('UPDATE user_themes SET is_active = 0 WHERE user_id = ?').bind(payload.sub).run();
+        await db.prepare('UPDATE user_themes SET is_active = 1 WHERE user_id = ? AND name = ?').bind(payload.sub, name).run();
+        return json({ success: true });
+      } catch (e) {
+        if (/no such table: user_themes/i.test(e?.message)) return json({ error: 'Themes not available' }, 503);
+        throw e;
+      }
+    }
+
     // GET /api/feed
     if (path === 'feed' && method === 'GET') {
       const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
@@ -929,9 +1020,18 @@ export async function onRequest(context) {
     if (path.startsWith('exists/') && method === 'GET') {
       const id = path.slice('exists/'.length).replace(/[^a-f0-9]/gi, '');
       if (!id || id.length !== 64) return json({ error: 'Invalid hash' }, 400);
-      const post = await db.prepare(
-        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
-      ).bind(id, id).first();
+      let post;
+      try {
+        post = await db.prepare(
+          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE image_hash = ? OR babel_hash = ?'
+        ).bind(id, id).first();
+      } catch (e) {
+        if (/no column named user_id/i.test(e?.message)) {
+          post = await db.prepare(
+            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
+          ).bind(id, id).first();
+        } else throw e;
+      }
       return json({
         hash: id,
         num: post?.num ?? null,

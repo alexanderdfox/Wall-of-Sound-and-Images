@@ -362,7 +362,7 @@ hashDropzone.addEventListener('drop', async (e) => {
       <p class="success">Image hash: ${(imageHash || '').slice(0, 16)}…</p>
       <p class="success">Babelia: ${(babelHash || '').slice(0, 16)}…</p>
       <p>${data.exists ? 'Found in database.' : 'Not in database.'}</p>
-      ${data.post ? `<p>#${data.post.num} · @${data.post.username} · <a href="/i/n/${data.post.num}">View</a></p>` : ''}
+      ${data.post ? `<p>#${data.post.num} · ${(data.post.userId || data.post.username) ? `<a href="/u/${encodeURIComponent(data.post.userId || data.post.username)}">@${escapeHtml(data.post.username || '')}</a>` : `@${escapeHtml(data.post.username || '')}`} · <a href="/i/n/${data.post.num}">View</a></p>` : ''}
     `;
   } catch (err) {
     hashResult.innerHTML = '<p class="error">Failed to compute location.</p>';
@@ -402,7 +402,7 @@ document.getElementById('hash-form').addEventListener('submit', async (e) => {
     const meta = document.createElement('div');
     meta.innerHTML = `
       <p class="success">#${postResData?.num ?? '?'} · ${(babelHash || input)?.slice(0, 16) ?? input}…</p>
-      ${postResData ? `<p>@${postResData.username} — ${escapeHtml(postResData.caption || '')}</p>` : ''}
+      ${postResData ? `<p>${(postResData.userId || postResData.username) ? `<a href="/u/${encodeURIComponent(postResData.userId || postResData.username)}">@${escapeHtml(postResData.username || '')}</a>` : `@${escapeHtml(postResData.username || '')}`} — ${escapeHtml(postResData.caption || '')}</p>` : ''}
     `;
 
     hashResult.appendChild(img);
@@ -430,6 +430,7 @@ async function checkAuth() {
       localStorage.removeItem('tchoff_token');
     }
     document.getElementById('btn-auth').title = currentUser ? '@' + currentUser.username : 'Sign in / Account';
+    if (currentUser && window.ThemeLoader?.syncFromServer) ThemeLoader.syncFromServer();
   } catch {
     authToken = null;
   }
@@ -623,6 +624,7 @@ document.getElementById('auth-login-form').addEventListener('submit', async (e) 
     localStorage.setItem('tchoff_token', authToken);
     authModal.close();
     document.getElementById('btn-auth').title = '@' + (currentUser.username || '');
+    if (window.ThemeLoader?.syncFromServer) ThemeLoader.syncFromServer();
   } catch (err) {
     alert(err.message);
   }
@@ -679,6 +681,7 @@ document.getElementById('auth-signup-form').addEventListener('submit', async (e)
     localStorage.setItem('tchoff_token', authToken);
     authModal.close();
     document.getElementById('btn-auth').title = '@' + (currentUser.username || '');
+    if (window.ThemeLoader?.syncFromServer) ThemeLoader.syncFromServer();
   } catch (err) {
     alert(err.message || 'Something went wrong. Please try again.');
   }
@@ -706,5 +709,8 @@ if (hash === 'upload') {
   hashInput.value = '';
   hashResult.innerHTML = '';
   hashInput.focus();
+  history.replaceState(null, '', window.location.pathname);
+} else if (hash === 'auth') {
+  authModal.showModal();
   history.replaceState(null, '', window.location.pathname);
 }

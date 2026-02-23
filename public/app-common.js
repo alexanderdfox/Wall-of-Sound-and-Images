@@ -54,7 +54,7 @@ async function openPost(post, postModal, lightboxBody) {
       const res = await fetch(`${API}/post/n/${post.num}/comments`);
       const data = res.ok ? await res.json() : { comments: [] };
       commentsList.innerHTML = (data.comments || []).map((c) =>
-        `<div class="comment"><span class="comment-user">@${escapeHtml(c.username || '')}</span> ${escapeHtml(c.text)}</div>`
+        `<div class="comment">${(c.userId || c.username) ? `<a href="/u/${encodeURIComponent(c.userId || c.username || '')}" class="comment-user">@${escapeHtml(c.username || '')}</a>` : `<span class="comment-user">@${escapeHtml(c.username || '')}</span>`} ${escapeHtml(c.text)}</div>`
       ).join('') || '<p class="no-comments">No comments yet</p>';
     } catch (_) {
       commentsList.innerHTML = '<p class="no-comments">No comments yet</p>';

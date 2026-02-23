@@ -16,6 +16,7 @@
     "cf:d1:migrate-follows": "wrangler d1 execute tchoff-db --remote --file=migrations/0005_followers_following.sql",
     "cf:d1:migrate-sounds": "wrangler d1 execute tchoff-db --remote --file=migrations/0006_sounds.sql",
     "cf:d1:migrate-sound-likes": "wrangler d1 execute tchoff-db --remote --file=migrations/0007_sound_likes_comments.sql",
+    "cf:d1:migrate-themes": "wrangler d1 execute tchoff-db --remote --file=migrations/0008_user_themes.sql",
     "cf:r2:create": "wrangler r2 bucket create tchoff-images",
     "cf:d1:clear": "wrangler d1 execute tchoff-db --remote --file=migrations/clear_all.sql"
   },

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Themes — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="/theme-loader.js"></script>
+  <style>
+    .themes-page { max-width: 700px; margin: 0 auto; padding: 32px 24px; }
+    .themes-page h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .themes-page .subtitle { color: var(--text-muted); margin-bottom: 28px; font-size: 0.95rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; text-decoration: none; transition: color 0.2s; }
+    .back-link:hover { color: var(--text); }
+    .theme-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .theme-section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+    .theme-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .theme-row:last-child { margin-bottom: 0; }
+    .theme-row label { min-width: 120px; font-size: 0.9rem; color: var(--text-muted); }
+    .theme-row input[type="color"] {
+      width: 48px; height: 32px; padding: 2px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg); cursor: pointer;
+    }
+    .theme-row input[type="text"] {
+      flex: 1; min-width: 100px; font-family: var(--font-mono); font-size: 0.85rem;
+      padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+    }
+    .theme-row input:focus { outline: none; border-color: var(--accent); }
+    .theme-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .theme-actions .btn { padding: 10px 18px; font-size: 0.9rem; }
+    .saved-themes { display: flex; flex-direction: column; gap: 8px; }
+    .saved-theme-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 16px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); flex-wrap: wrap;
+    }
+    .saved-theme-item span { font-weight: 500; color: var(--text); }
+    .saved-theme-item .theme-preview { display: flex; gap: 4px; }
+    .saved-theme-item .theme-preview span {
+      width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border);
+    }
+    .saved-theme-item .theme-btns { display: flex; gap: 8px; }
+    .saved-themes-empty { color: var(--text-muted); font-size: 0.9rem; padding: 16px; }
+    .theme-name-input { max-width: 200px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Navigate">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem" aria-current="page">Themes</a>
+          <a href="/#upload" role="menuitem">Upload</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="themes-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Themes</h1>
+    <p class="subtitle">Customize colors across the site. <span id="theme-sync-hint">Themes are saved in your browser.</span></p>
+
+    <section class="theme-section">
+      <h2>Colors</h2>
+      <div class="theme-row">
+        <label>Background</label>
+        <input type="color" id="c-bg" value="#0d0d0e">
+        <input type="text" id="t-bg" value="#0d0d0e" placeholder="#0d0d0e">
+      </div>
+      <div class="theme-row">
+        <label>Cards</label>
+        <input type="color" id="c-bg-card" value="#18181b">
+        <input type="text" id="t-bg-card" value="#18181b" placeholder="#18181b">
+      </div>
+      <div class="theme-row">
+        <label>Borders</label>
+        <input type="color" id="c-border" value="#27272a">
+        <input type="text" id="t-border" value="#27272a" placeholder="#27272a">
+      </div>
+      <div class="theme-row">
+        <label>Text</label>
+        <input type="color" id="c-text" value="#fafafa">
+        <input type="text" id="t-text" value="#fafafa" placeholder="#fafafa">
+      </div>
+      <div class="theme-row">
+        <label>Text muted</label>
+        <input type="color" id="c-text-muted" value="#a1a1aa">
+        <input type="text" id="t-text-muted" value="#a1a1aa" placeholder="#a1a1aa">
+      </div>
+      <div class="theme-row">
+        <label>Text dim</label>
+        <input type="color" id="c-text-dim" value="#71717a">
+        <input type="text" id="t-text-dim" value="#71717a" placeholder="#71717a">
+      </div>
+      <div class="theme-row">
+        <label>Accent</label>
+        <input type="color" id="c-accent" value="#22c55e">
+        <input type="text" id="t-accent" value="#22c55e" placeholder="#22c55e">
+      </div>
+      <div class="theme-row">
+        <label>Accent hover</label>
+        <input type="color" id="c-accent-hover" value="#16a34a">
+        <input type="text" id="t-accent-hover" value="#16a34a" placeholder="#16a34a">
+      </div>
+      <div class="theme-row">
+        <label>Danger</label>
+        <input type="color" id="c-danger" value="#ef4444">
+        <input type="text" id="t-danger" value="#ef4444" placeholder="#ef4444">
+      </div>
+      <div class="theme-actions">
+        <button type="button" class="btn btn-primary" id="btn-apply">Apply</button>
+        <button type="button" class="btn btn-ghost" id="btn-reset">Reset to default</button>
+      </div>
+    </section>
+
+    <section class="theme-section">
+      <h2>Save theme</h2>
+      <div class="theme-row">
+        <label>Theme name</label>
+        <input type="text" id="theme-name" class="theme-name-input" placeholder="My theme">
+      </div>
+      <div class="theme-actions" style="margin-top: 16px">
+        <button type="button" class="btn btn-primary" id="btn-save">Save theme</button>
+      </div>
+    </section>
+
+    <section class="theme-section">
+      <h2>Saved themes</h2>
+      <div id="saved-themes-list" class="saved-themes"></div>
+    </section>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+  <script>
+    const DEFAULTS = {
+      bg: '#0d0d0e',
+      'bg-card': '#18181b',
+      border: '#27272a',
+      text: '#fafafa',
+      'text-muted': '#a1a1aa',
+      'text-dim': '#71717a',
+      accent: '#22c55e',
+      'accent-hover': '#16a34a',
+      danger: '#ef4444'
+    };
+
+    const KEYS = ['bg', 'bg-card', 'border', 'text', 'text-muted', 'text-dim', 'accent', 'accent-hover', 'danger'];
+
+    function getValues() {
+      const v = {};
+      KEYS.forEach(k => {
+        const hex = document.getElementById('t-' + k.replace('-', '-')).value.trim();
+        v[k] = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : DEFAULTS[k];
+      });
+      return v;
+    }
+
+    function setValues(v) {
+      KEYS.forEach(k => {
+        const val = v[k] || DEFAULTS[k];
+        document.getElementById('c-' + k.replace('-', '-')).value = val;
+        document.getElementById('t-' + k.replace('-', '-')).value = val;
+      });
+    }
+
+    function syncColorToText(id) {
+      const c = document.getElementById('c-' + id);
+      const t = document.getElementById('t-' + id);
+      if (c && t) { t.value = c.value; }
+    }
+
+    function syncTextToColor(id) {
+      const t = document.getElementById('t-' + id);
+      const c = document.getElementById('c-' + id);
+      const val = t.value.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(val) && c) { c.value = val; }
+    }
+
+    function applyTheme(values) {
+      const v = values || getValues();
+      ThemeLoader.apply(v);
+    }
+
+    function loadSavedThemes() {
+      const list = document.getElementById('saved-themes-list');
+      const themes = ThemeLoader.getSavedThemes();
+      if (!themes.length) {
+        list.innerHTML = '<div class="saved-themes-empty">No saved themes yet. Adjust colors above and click "Save theme".</div>';
+        return;
+      }
+      list.innerHTML = themes.map((t, i) => {
+        const colors = t.colors || {};
+        const preview = ['bg', 'bg-card', 'accent'].map(k => colors[k] || DEFAULTS[k]);
+        return `
+          <div class="saved-theme-item">
+            <span>${escapeHtml(t.name)}</span>
+            <div class="theme-preview">
+              ${preview.map(c => `<span style="background:${escapeHtml(c)}" title="${escapeHtml(c)}"></span>`).join('')}
+            </div>
+            <div class="theme-btns">
+              <button type="button" class="btn btn-primary" data-load="${i}">Load</button>
+              <button type="button" class="btn btn-ghost" data-delete="${escapeHtml(t.name)}">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      list.querySelectorAll('[data-load]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const t = themes[parseInt(btn.dataset.load, 10)];
+          if (!t) return;
+          setValues(t.colors || {});
+          applyTheme(t.colors);
+          if (ThemeLoader.hasToken()) await ThemeLoader.setActiveOnServer(t);
+          else ThemeLoader.setActive(t);
+        });
+      });
+      list.querySelectorAll('[data-delete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const name = btn.dataset.delete;
+          if (ThemeLoader.hasToken()) await ThemeLoader.deleteThemeFromServer(name);
+          else ThemeLoader.deleteTheme(name);
+          loadSavedThemes();
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    KEYS.forEach(k => {
+      const key = k.replace('-', '-');
+      const c = document.getElementById('c-' + key);
+      const t = document.getElementById('t-' + key);
+      if (c) c.addEventListener('input', () => syncColorToText(key));
+      if (t) t.addEventListener('change', () => syncTextToColor(key));
+    });
+
+    document.getElementById('btn-apply').addEventListener('click', () => applyTheme());
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      setValues(DEFAULTS);
+      applyTheme(DEFAULTS);
+      ThemeLoader.clearActive();
+    });
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const name = document.getElementById('theme-name').value.trim() || 'Unnamed';
+      const colors = getValues();
+      const theme = { name, colors };
+      if (ThemeLoader.hasToken()) {
+        await ThemeLoader.saveThemeToServer(theme, true);
+      } else {
+        ThemeLoader.saveTheme(theme);
+        ThemeLoader.setActive(theme);
+      }
+      document.getElementById('theme-name').value = '';
+      loadSavedThemes();
+    });
+
+    async function initThemes() {
+      if (ThemeLoader.hasToken()) {
+        await ThemeLoader.syncFromServer();
+        const hint = document.getElementById('theme-sync-hint');
+        if (hint) hint.textContent = 'Themes sync to your account—saved across devices.';
+      }
+      const active = ThemeLoader.getActive();
+      if (active && active.colors) setValues(active.colors);
+      loadSavedThemes();
+    }
+    initThemes();
+  </script>
+</body>
+</html>
