@@ -64,6 +64,7 @@ async function openPost(post, postModal, lightboxBody) {
           👍 <span class="like-count">${likeCount}</span>
         </button>
         <span class="lightbox-comment-count">${commentCount} comment${commentCount !== 1 ? 's' : ''}</span>
+        <a href="/draw/?img=${encodeURIComponent(imgSrc)}" class="btn-ghost" title="Draw on this image" target="_blank" rel="noopener">✏️ Draw</a>
         <button type="button" class="btn-ghost btn-report" data-type="image" data-num="${post.num || ''}" data-hash="${escapeHtml((post.babeliaLocation || post.hash) || '')}" title="Report">🚩 Report</button>
       </div>
       <div class="lightbox-hash">#${post.num || '?'} · ${(post.babeliaLocation || post.hash || '').slice(0, 16)}…</div>
