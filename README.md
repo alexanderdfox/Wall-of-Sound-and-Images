@@ -10,7 +10,9 @@ Store images once. Each size (100, 200, 400, 800, 1600) gets a unique hash that 
 
 ## Deploy on Cloudflare
 
-Runs on **Cloudflare Pages** with **D1** (SQLite) and **R2** (object storage). All image hashing and Babelia computation happens in the browser.
+Runs on **Cloudflare Pages** with **D1** (SQLite) and **KV**. All image hashing and Babelia computation happens in the browser.
+
+→ **[SETUP.md](SETUP.md)** — step-by-step GitHub + Cloudflare Pages setup
 
 ### Prerequisites
 
@@ -32,13 +34,31 @@ npm run cf:d1:init     # apply schema to D1
 npm run cf:deploy      # deploy to Cloudflare Pages
 ```
 
-### Git-based deploys (Cloudflare connected to GitHub)
+### GitHub → Cloudflare Pages (auto-deploy)
 
-If you get "Workers-specific command in a Pages project", fix the build config:
+1. **Create a Pages project**  
+   [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
 
-1. **Cloudflare Dashboard** → Pages → your project → **Settings** → **Builds & deployments** → **Build configuration**
-2. **Build command**: `bash build.sh` (or leave empty for static)
-3. **Build output directory**: `public`
+2. **Connect GitHub**  
+   - Choose **GitHub** and authorize Cloudflare  
+   - Select your repo: `alexanderdfox/Wall-of-Sound-and-Images`  
+   - Select branch: `main`
+
+3. **Build configuration**
+   - **Framework preset**: None  
+   - **Build command**: `npm run build`  
+   - **Build output directory**: `public`  
+   - **Root directory**: (leave empty)  
+   - **Deploy command**: **Leave empty** — Cloudflare deploys build output automatically. Do not set `npx wrangler deploy`.
+
+4. **Environment variables**  
+   Add in Settings → Environment variables if needed:
+   - `JWT_SECRET` (production) — use a strong random value, or set via `wrangler pages secret put JWT_SECRET`
+
+5. **D1 and KV**  
+   Ensure D1 (`tchoff-db`) and KV (`BABEL_IMAGES`, `BABEL_SOUNDS`) are attached to the project in Settings → Functions → D1 bindings / KV bindings.
+
+6. **Save** — each push to `main` triggers a new deploy.
 
 ## API
 
