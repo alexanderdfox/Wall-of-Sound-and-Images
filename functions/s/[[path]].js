@@ -12,12 +12,14 @@ export async function onRequest(context) {
     if (pathSegments[0] === 'n' && pathSegments[1]) {
       const num = parseInt(String(pathSegments[1]), 10);
       if (isNaN(num) || num < 1) return json({ error: 'Invalid number' }, 400);
-      const sound = await db.prepare('SELECT hash FROM sounds WHERE num = ?').bind(num).first();
+      const sound = await db.prepare('SELECT hash FROM sounds WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!sound) return json({ error: 'Not found', num }, 404);
       hash = sound.hash;
     } else {
       hash = String(pathSegments[0] || '').replace(/[^a-f0-9]/gi, '').replace(/\.(mp3|wav|ogg|webm)$/i, '');
       if (!hash || hash.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
+      const disabledCheck = await db.prepare('SELECT 1 FROM sounds WHERE hash = ? AND (COALESCE(disabled,0) = 1)').bind(hash).first();
+      if (disabledCheck) return json({ error: 'Not found', hash }, 404);
     }
 
     // Prefer uploaded clip from KV (content-addressed)

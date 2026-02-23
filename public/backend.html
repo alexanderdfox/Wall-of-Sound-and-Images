@@ -18,12 +18,16 @@
     .backend-denied { padding: 48px 24px; text-align: center; color: var(--text-muted); }
     .backend-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 24px; }
     .backend-section h2 { font-size: 1.1rem; margin-bottom: 16px; }
-    .report-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+    .report-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
     .report-item:last-child { border-bottom: none; }
     .report-meta { font-size: 0.85rem; color: var(--text-muted); }
     .report-reason { font-weight: 500; }
     .report-link { font-size: 0.85rem; }
     .report-link a { color: var(--accent); }
+    .report-details { display: grid; gap: 6px 16px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-top: 8px; }
+    .report-detail { font-size: 0.8rem; color: var(--text-muted); }
+    .report-detail strong { color: var(--text); }
+    .report-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
     .pagination-backend { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
   </style>
 </head>
@@ -87,6 +91,7 @@
   <script src="/nav-dropdown.js"></script>
   <script>
     const API = '/api';
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     const authToken = localStorage.getItem('tchoff_token');
 
     document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
@@ -122,17 +127,49 @@
                 ? (r.contentNum ? `/i/n/${r.contentNum}` : r.contentHash ? `/i/${r.contentHash}` : '#')
                 : (r.contentNum ? `/s/n/${r.contentNum}` : r.contentHash ? `/sound.html#${r.contentHash}` : '#');
               const linkText = r.contentType === 'image' ? 'View image' : 'View sound';
+              const canDisable = (r.contentType === 'image' || r.contentType === 'sound') && !r.isDisabled;
+              const disableData = JSON.stringify({ type: r.contentType, num: r.contentNum, hash: r.contentHash });
               return `
-                <div class="report-item">
+                <div class="report-item" data-report-id="${r.id}">
                   <div>
                     <span class="report-reason">${r.reason}</span>
                     <span class="report-meta"> · ${r.contentType} #${r.contentNum || r.contentHash?.slice(0, 12) || '?'}</span>
+                    ${r.isDisabled ? '<span class="report-meta" style="color:var(--text-muted)">(disabled)</span>' : ''}
                   </div>
-                  <div class="report-meta">@${r.reporterUsername} · ${r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
-                  ${r.details ? `<div class="report-meta" style="width:100%">${r.details}</div>` : ''}
-                  <div class="report-link"><a href="${link}" target="_blank" rel="noopener">${linkText} →</a></div>
+                  <div class="report-meta">Reported by @${r.reporterUsername} · ${r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
+                  ${r.details ? `<div class="report-meta">Details: ${escapeHtml(r.details)}</div>` : ''}
+                  <div class="report-details">
+                    <div class="report-detail"><strong>Poster:</strong> @${r.posterUsername}</div>
+                    <div class="report-detail"><strong>Post origin IP:</strong> ${r.postOriginIp || '—'}</div>
+                    <div class="report-detail"><strong>Reporter IP:</strong> ${r.reporterIp || '—'}</div>
+                  </div>
+                  <div class="report-actions">
+                    <div class="report-link"><a href="${link}" target="_blank" rel="noopener">${linkText} →</a></div>
+                    ${canDisable ? `<button type="button" class="btn btn-ghost btn-disable-report" data-payload='${disableData.replace(/'/g, '&#39;')}' title="Hide from all users">Disable</button>` : ''}
+                  </div>
                 </div>`;
             }).join('');
+        list.querySelectorAll('.btn-disable-report').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const payload = JSON.parse(btn.dataset.payload || '{}');
+            btn.disabled = true;
+            btn.textContent = '…';
+            try {
+              const res = await fetch(API + '/admin/disable', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+                body: JSON.stringify({ contentType: payload.type, num: payload.num, hash: payload.hash }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed');
+              loadReports(page);
+            } catch (err) {
+              alert(err.message);
+              btn.disabled = false;
+              btn.textContent = 'Disable';
+            }
+          });
+        });
         const total = data.total ?? 0;
         const per = data.per ?? 20;
         const totalPages = Math.max(1, Math.ceil(total / per));

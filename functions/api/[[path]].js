@@ -280,11 +280,20 @@ export async function onRequest(context) {
           `SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${feedWhere.sql} ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?`
         ).bind(...feedWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error/i.test(e?.message)) {
-          countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images ORDER BY num DESC LIMIT 100)').first();
-          rows = await db.prepare(
-            'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
-          ).bind(per, offset).all();
+        if (/no column named user_id|no column named visibility|no such table: friends|subquery|syntax error|no column named disabled/i.test(e?.message)) {
+          try {
+            countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT 100)').first();
+            rows = await db.prepare(
+              'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
+            ).bind(per, offset).all();
+          } catch (e2) {
+            if (/no column named disabled/i.test(e2?.message)) {
+              countRow = await db.prepare('SELECT COUNT(*) as c FROM (SELECT 1 FROM images ORDER BY num DESC LIMIT 100)').first();
+              rows = await db.prepare(
+                'SELECT * FROM (SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images ORDER BY num DESC LIMIT 100) LIMIT ? OFFSET ?'
+              ).bind(per, offset).all();
+            } else throw e2;
+          }
         } else throw e;
       }
       const total = countRow?.c ?? 0;
@@ -351,11 +360,20 @@ export async function onRequest(context) {
           `SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images ${userImagesWhere.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
         ).bind(...userImagesWhere.params, per, offset).all();
       } catch (e) {
-        if (/no column named visibility/i.test(e?.message)) {
-          countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
-          rows = await db.prepare(
-            'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
-          ).bind(id, per, offset).all();
+        if (/no column named visibility|no column named disabled/i.test(e?.message)) {
+          try {
+            countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0)').bind(id).first();
+            rows = await db.prepare(
+              'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? AND (COALESCE(disabled,0) = 0) ORDER BY num DESC LIMIT ? OFFSET ?'
+            ).bind(id, per, offset).all();
+          } catch (e2) {
+            if (/no column named disabled/i.test(e2?.message)) {
+              countRow = await db.prepare('SELECT COUNT(*) as c FROM images WHERE user_id = ?').bind(id).first();
+              rows = await db.prepare(
+                'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE user_id = ? ORDER BY num DESC LIMIT ? OFFSET ?'
+              ).bind(id, per, offset).all();
+            } else throw e2;
+          }
         } else throw e;
       }
       const total = countRow?.c ?? 0;
@@ -544,7 +562,7 @@ export async function onRequest(context) {
       const hash = path.slice('exists-sound/'.length).replace(/[^a-f0-9]/gi, '');
       if (!hash || hash.length !== 64) return json({ error: 'Invalid hash' }, 400);
       const sound = await db.prepare(
-        'SELECT num, hash, user_id, caption, duration, created_at FROM sounds WHERE hash = ?'
+        'SELECT num, hash, user_id, caption, duration, created_at FROM sounds WHERE hash = ? AND (COALESCE(disabled,0) = 0)'
       ).bind(hash).first().catch(() => null);
       return json({
         hash: hash,
@@ -558,9 +576,11 @@ export async function onRequest(context) {
     if (path.match(/^sound\/n\/\d+\/comments$/) && method === 'GET') {
       const num = parseInt(path.split('/')[2], 10);
       if (isNaN(num) || num < 1) return json({ error: 'Invalid sound' }, 400);
+      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
+      if (!sound) return json({ error: 'Sound not found' }, 404);
       try {
         const rows = await db.prepare(
-          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? ORDER BY c.created_at ASC'
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC'
         ).bind(num).all();
         return json({ comments: rows.results || [] });
       } catch (e) {
@@ -580,13 +600,13 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const text = (body?.text || '').toString().trim().slice(0, 500);
       if (!text) return json({ error: 'Comment text required' }, 400);
-      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ?').bind(num).first();
+      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!sound) return json({ error: 'Sound not found' }, 404);
       try {
         await db.prepare('INSERT INTO sound_comments (id, sound_num, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)')
           .bind(crypto.randomUUID(), num, payload.sub, text, new Date().toISOString()).run();
         const rows = await db.prepare(
-          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? ORDER BY c.created_at ASC'
+          'SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM sound_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.sound_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC'
         ).bind(num).all();
         return json({ comments: rows.results || [] });
       } catch (e) {
@@ -603,7 +623,7 @@ export async function onRequest(context) {
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
       if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
-      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ?').bind(num).first();
+      const sound = await db.prepare('SELECT num FROM sounds WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!sound) return json({ error: 'Sound not found' }, 404);
       try {
         const existing = await db.prepare('SELECT 1 FROM sound_likes WHERE sound_num = ? AND user_id = ?').bind(num, payload.sub).first();
@@ -626,7 +646,7 @@ export async function onRequest(context) {
       const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 50));
       const q = (url.searchParams.get('q') || '').trim().slice(0, 50);
       const offset = (page - 1) * per;
-      let sql = "SELECT num, hash, caption, duration, created_at as createdAt FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')";
+      let sql = "SELECT num, hash, caption, duration, created_at as createdAt FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)";
       const params = [];
       if (q) {
         sql += " AND (hash LIKE ? OR caption LIKE ?)";
@@ -636,8 +656,8 @@ export async function onRequest(context) {
       params.push(per, offset);
       try {
         const countSql = q
-          ? "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (hash LIKE ? OR caption LIKE ?)"
-          : "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')";
+          ? "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0) AND (hash LIKE ? OR caption LIKE ?)"
+          : "SELECT COUNT(*) as c FROM sounds WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '') AND (COALESCE(disabled,0) = 0)";
         const countRow = q
           ? await db.prepare(countSql).bind('%' + q + '%', '%' + q + '%').first()
           : await db.prepare(countSql).first();
@@ -653,8 +673,8 @@ export async function onRequest(context) {
     // GET /api/catalog
     if (path === 'catalog' && method === 'GET') {
       const rows = await db.prepare(
-        'SELECT num, image_hash as hash, babel_hash as babeliaLocation FROM images ORDER BY num ASC'
-      ).all();
+        'SELECT num, image_hash as hash, babel_hash as babeliaLocation FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num ASC'
+      ).all().catch(() => ({ results: [] }));
       return json({ items: rows.results || [], count: (rows.results || []).length });
     }
 
@@ -663,7 +683,7 @@ export async function onRequest(context) {
       try {
         const rows = await db.prepare(
           `SELECT s.num, s.hash, s.caption, s.duration, s.created_at as createdAt, s.visibility, u.username
-           FROM sounds s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.num ASC`
+           FROM sounds s LEFT JOIN users u ON u.id = s.user_id WHERE (COALESCE(s.disabled,0) = 0) ORDER BY s.num ASC`
         ).all();
         const items = (rows.results || []).map((r) => ({
           num: r.num,
@@ -684,8 +704,8 @@ export async function onRequest(context) {
     // GET /api/hashes
     if (path === 'hashes' && method === 'GET') {
       const rows = await db.prepare(
-        'SELECT num, image_hash as imageHash, babel_hash as babelHash, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images ORDER BY num ASC'
-      ).all();
+        'SELECT num, image_hash as imageHash, babel_hash as babelHash, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (COALESCE(disabled,0) = 0) ORDER BY num ASC'
+      ).all().catch(() => ({ results: [] }));
       const items = (rows.results || []).map((r) => ({
         num: r.num,
         imageHash: r.imageHash,
@@ -864,7 +884,7 @@ export async function onRequest(context) {
         if (payload?.sub) viewerId = payload.sub;
       }
       const post = await db.prepare(
-        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ?'
+        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)'
       ).bind(num).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       try {
@@ -885,7 +905,7 @@ export async function onRequest(context) {
       const id = path.slice('post/'.length).replace(/[^a-f0-9]/gi, '');
       if (!id || id.length !== 64) return json({ error: 'Invalid hash (64 hex chars)' }, 400);
       const post = await db.prepare(
-        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
+        'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0)'
       ).bind(id, id).first();
       if (!post) return json({ error: 'Post not found' }, 404);
       const babelHash = post.babeliaLocation || post.hash;
@@ -906,11 +926,11 @@ export async function onRequest(context) {
         const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
         if (payload?.sub) viewerId = payload.sub;
       }
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ?').bind(num).first();
+      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, viewerId))) return json({ error: 'Post not found' }, 404);
       const rows = await db.prepare(
-        `SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.image_num = ? ORDER BY c.created_at ASC`
+        `SELECT c.id, c.text, c.created_at as createdAt, c.user_id as userId, u.username FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.image_num = ? AND (COALESCE(c.disabled,0) = 0) ORDER BY c.created_at ASC`
       ).bind(num).all();
       const comments = (rows.results || []).map((r) => ({ id: r.id, text: r.text, createdAt: r.createdAt, userId: r.userId, username: r.username || 'user' }));
       return json({ comments });
@@ -926,7 +946,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const text = (body?.text || '').toString().trim().slice(0, 500);
       if (!text) return json({ error: 'Comment text required' }, 400);
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ?').bind(num).first();
+      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, payload.sub))) return json({ error: 'Post not found' }, 404);
       const id = crypto.randomUUID();
@@ -943,7 +963,7 @@ export async function onRequest(context) {
       if (!token || !env.JWT_SECRET) return json({ error: 'Sign in to like' }, 401);
       const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
       if (!payload?.sub) return json({ error: 'Sign in to like' }, 401);
-      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ?').bind(num).first();
+      const img = await db.prepare('SELECT num, user_id, visibility FROM images WHERE num = ? AND (COALESCE(disabled,0) = 0)').bind(num).first();
       if (!img) return json({ error: 'Post not found' }, 404);
       if (!(await canViewImage(db, img, payload.sub))) return json({ error: 'Post not found' }, 404);
       const existing = await db.prepare('SELECT 1 FROM likes WHERE image_num = ? AND user_id = ?').bind(num, payload.sub).first();
@@ -1066,10 +1086,19 @@ export async function onRequest(context) {
 
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
+      const reporterIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
       try {
-        await db.prepare(
-          'INSERT INTO reports (id, reporter_id, content_type, content_num, content_hash, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-        ).bind(id, payload.sub, contentType, contentNum || null, contentHash || null, reason, details || null, createdAt).run();
+        try {
+          await db.prepare(
+            'INSERT INTO reports (id, reporter_id, content_type, content_num, content_hash, reason, details, created_at, reporter_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, payload.sub, contentType, contentNum || null, contentHash || null, reason, details || null, createdAt, reporterIp).run();
+        } catch (e2) {
+          if (/no column named reporter_ip/i.test(e2?.message)) {
+            await db.prepare(
+              'INSERT INTO reports (id, reporter_id, content_type, content_num, content_hash, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(id, payload.sub, contentType, contentNum || null, contentHash || null, reason, details || null, createdAt).run();
+          } else throw e2;
+        }
       } catch (e) {
         if (/no such table: reports/i.test(e?.message)) return json({ error: 'Reports not configured' }, 500);
         throw e;
@@ -1094,6 +1123,64 @@ export async function onRequest(context) {
       return json({ admin: !!admin });
     }
 
+    // POST /api/admin/disable - disable image/sound/comment (admin only)
+    if (path === 'admin/disable' && method === 'POST') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub || !(await isAdmin(payload.sub))) return json({ error: 'Admin access required' }, 403);
+      const body = await request.json().catch(() => ({}));
+      const contentType = (body.type || body.contentType || '').toString();
+      const contentNum = (body.num !== undefined && body.num !== null && body.num !== '') ? parseInt(body.num, 10) : null;
+      const contentHash = (body.hash || '').toString().replace(/[^a-f0-9]/gi, '').slice(0, 64) || null;
+      const commentId = (body.commentId || '').toString() || null;
+      if (contentType === 'image') {
+        if (!contentNum && !contentHash) return json({ error: 'Num or hash required' }, 400);
+        try {
+          if (contentNum) {
+            const r = await db.prepare('UPDATE images SET disabled = 1 WHERE num = ?').bind(contentNum).run();
+            if (r.meta?.changes === 0) return json({ error: 'Image not found' }, 404);
+          } else {
+            const r = await db.prepare('UPDATE images SET disabled = 1 WHERE babel_hash = ? OR image_hash = ?').bind(contentHash, contentHash).run();
+            if (r.meta?.changes === 0) return json({ error: 'Image not found' }, 404);
+          }
+          return json({ success: true, message: 'Image disabled' });
+        } catch (e) {
+          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          throw e;
+        }
+      } else if (contentType === 'sound') {
+        if (!contentNum && !contentHash) return json({ error: 'Num or hash required' }, 400);
+        try {
+          if (contentNum) {
+            const r = await db.prepare('UPDATE sounds SET disabled = 1 WHERE num = ?').bind(contentNum).run();
+            if (r.meta?.changes === 0) return json({ error: 'Sound not found' }, 404);
+          } else {
+            const r = await db.prepare('UPDATE sounds SET disabled = 1 WHERE hash = ?').bind(contentHash).run();
+            if (r.meta?.changes === 0) return json({ error: 'Sound not found' }, 404);
+          }
+          return json({ success: true, message: 'Sound disabled' });
+        } catch (e) {
+          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          throw e;
+        }
+      } else if (contentType === 'comment' && commentId) {
+        try {
+          const r = await db.prepare('UPDATE comments SET disabled = 1 WHERE id = ?').bind(commentId).run();
+          if (r.meta?.changes === 0) {
+            const r2 = await db.prepare('UPDATE sound_comments SET disabled = 1 WHERE id = ?').bind(commentId).run();
+            if (r2.meta?.changes === 0) return json({ error: 'Comment not found' }, 404);
+          }
+          return json({ success: true, message: 'Comment disabled' });
+        } catch (e) {
+          if (/no column named disabled/i.test(e?.message)) return json({ error: 'Run migration 0011_disabled_content.sql' }, 500);
+          throw e;
+        }
+      } else {
+        return json({ error: 'Invalid content type or commentId' }, 400);
+      }
+    }
+
     // GET /api/admin/reports - list reports (admin only)
     if (path === 'admin/reports' && method === 'GET') {
       const token = getBearerToken(request);
@@ -1108,25 +1195,83 @@ export async function onRequest(context) {
       try {
         const countRow = await db.prepare('SELECT COUNT(*) as c FROM reports').first();
         const rows = await db.prepare(
-          `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at,
-            u.username as reporter_username FROM reports r
+          `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at, r.reporter_ip,
+            u.username as reporter_username,
+            i.origin_ip as post_origin_ip, i.username as post_username_legacy, i.user_id as post_user_id, i.disabled as image_disabled,
+            s.disabled as sound_disabled,
+            poster_img.username as poster_username, poster_snd.username as poster_username_sound
+           FROM reports r
            LEFT JOIN users u ON u.id = r.reporter_id
+           LEFT JOIN images i ON r.content_type = 'image' AND (
+             (r.content_num IS NOT NULL AND i.num = r.content_num) OR
+             (r.content_hash IS NOT NULL AND (i.babel_hash = r.content_hash OR i.image_hash = r.content_hash))
+           )
+           LEFT JOIN sounds s ON r.content_type = 'sound' AND (
+             (r.content_num IS NOT NULL AND s.num = r.content_num) OR
+             (r.content_hash IS NOT NULL AND s.hash = r.content_hash)
+           )
+           LEFT JOIN users poster_img ON i.user_id = poster_img.id
+           LEFT JOIN users poster_snd ON s.user_id = poster_snd.id
            ORDER BY r.created_at DESC LIMIT ? OFFSET ?`
         ).bind(per, offset).all();
         const total = countRow?.c ?? 0;
-        const items = (rows.results || []).map((r) => ({
-          id: r.id,
-          contentType: r.content_type,
-          contentNum: r.content_num,
-          contentHash: r.content_hash,
-          reason: r.reason,
-          details: r.details || '',
-          createdAt: r.createdAt,
-          reporterUsername: r.reporter_username || '—',
-        }));
+        const items = (rows.results || []).map((r) => {
+          const posterUsername = r.poster_username || r.poster_username_sound || r.post_username_legacy || '—';
+          const isDisabled = r.content_type === 'image' ? !!(r.image_disabled) : r.content_type === 'sound' ? !!(r.sound_disabled) : false;
+          return {
+            id: r.id,
+            contentType: r.content_type,
+            contentNum: r.content_num,
+            contentHash: r.content_hash,
+            reason: r.reason,
+            details: r.details || '',
+            createdAt: r.created_at ?? r.createdAt,
+            reporterUsername: r.reporter_username || '—',
+            reporterIp: r.reporter_ip ?? null,
+            postOriginIp: r.post_origin_ip ?? null,
+            posterUsername,
+            isDisabled,
+          };
+        });
         return json({ items, total, page, per });
       } catch (e) {
         if (/no such table: reports/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        if (/no column named disabled/i.test(e?.message)) {
+          const rows = await db.prepare(
+            `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at, r.reporter_ip,
+              u.username as reporter_username,
+              i.origin_ip as post_origin_ip, i.username as post_username_legacy,
+              poster_img.username as poster_username, poster_snd.username as poster_username_sound
+             FROM reports r
+             LEFT JOIN users u ON u.id = r.reporter_id
+             LEFT JOIN images i ON r.content_type = 'image' AND (
+               (r.content_num IS NOT NULL AND i.num = r.content_num) OR
+               (r.content_hash IS NOT NULL AND (i.babel_hash = r.content_hash OR i.image_hash = r.content_hash))
+             )
+             LEFT JOIN sounds s ON r.content_type = 'sound' AND (
+               (r.content_num IS NOT NULL AND s.num = r.content_num) OR
+               (r.content_hash IS NOT NULL AND s.hash = r.content_hash)
+             )
+             LEFT JOIN users poster_img ON i.user_id = poster_img.id
+             LEFT JOIN users poster_snd ON s.user_id = poster_snd.id
+             ORDER BY r.created_at DESC LIMIT ? OFFSET ?`
+          ).bind(per, offset).all();
+          const items = (rows.results || []).map((r) => ({
+            id: r.id,
+            contentType: r.content_type,
+            contentNum: r.content_num,
+            contentHash: r.content_hash,
+            reason: r.reason,
+            details: r.details || '',
+            createdAt: r.created_at ?? r.createdAt,
+            reporterUsername: r.reporter_username || '—',
+            reporterIp: r.reporter_ip ?? null,
+            postOriginIp: r.post_origin_ip ?? null,
+            posterUsername: r.poster_username || r.poster_username_sound || r.post_username_legacy || '—',
+            isDisabled: false,
+          }));
+          return json({ items, total: countRow?.c ?? 0, page, per });
+        }
         throw e;
       }
     }
@@ -1138,10 +1283,10 @@ export async function onRequest(context) {
       let post;
       try {
         post = await db.prepare(
-          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE image_hash = ? OR babel_hash = ?'
+          'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif, user_id as userId FROM images WHERE (image_hash = ? OR babel_hash = ?) AND (COALESCE(disabled,0) = 0)'
         ).bind(id, id).first();
       } catch (e) {
-        if (/no column named user_id/i.test(e?.message)) {
+        if (/no column named user_id|no column named disabled/i.test(e?.message)) {
           post = await db.prepare(
             'SELECT id, num, image_hash as hash, babel_hash as babeliaLocation, caption, username, created_at as createdAt, origin_ip as originIp, width, height, exif FROM images WHERE image_hash = ? OR babel_hash = ?'
           ).bind(id, id).first();
@@ -1186,51 +1331,59 @@ function parseExifForApi(exif) {
   }
 }
 
+const DISABLED_IMAGES = " AND (COALESCE(images.disabled,0) = 0)";
+const DISABLED_IMAGES_ALIAS = " AND (COALESCE(disabled,0) = 0)";
+
 function buildVisibilityWhere(viewerId) {
   if (!viewerId) {
-    return { sql: "WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')", params: [] };
+    return { sql: "WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '')" + DISABLED_IMAGES_ALIAS, params: [] };
   }
   return {
-    sql: `WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '' OR user_id = ? OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE target_id = ? AND status = 'accepted'))))`,
+    sql: `WHERE (visibility = 'public' OR visibility IS NULL OR visibility = '' OR user_id = ? OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE target_id = ? AND status = 'accepted'))))` + DISABLED_IMAGES_ALIAS,
     params: [viewerId, viewerId, viewerId],
   };
 }
 
 function buildUserImagesWhere(ownerId, viewerId, canViewOwn) {
+  const disabled = DISABLED_IMAGES_ALIAS;
   if (canViewOwn) {
-    return { sql: 'WHERE user_id = ?', params: [ownerId] };
+    return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
   }
   try {
     if (!viewerId) {
-      return { sql: "WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL)", params: [ownerId] };
+      return { sql: "WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL)" + disabled, params: [ownerId] };
     }
     return {
-      sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))`,
+      sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))` + disabled,
       params: [ownerId, viewerId, ownerId, ownerId, viewerId],
     };
   } catch (e) {
     if (/no such table: friends|no column named visibility/i.test(e?.message)) {
-      return { sql: 'WHERE user_id = ?', params: [ownerId] };
+      return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
     }
     throw e;
   }
 }
 
+const DISABLED_SOUNDS = " AND (COALESCE(sounds.disabled,0) = 0)";
+const DISABLED_SOUNDS_ALIAS = " AND (COALESCE(disabled,0) = 0)";
+
 function buildUserSoundsWhere(ownerId, viewerId, canViewOwn) {
+  const disabled = DISABLED_SOUNDS_ALIAS;
   if (canViewOwn) {
-    return { sql: 'WHERE user_id = ?', params: [ownerId] };
+    return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
   }
   try {
     if (!viewerId) {
-      return { sql: "WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '')", params: [ownerId] };
+      return { sql: "WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '')" + disabled, params: [ownerId] };
     }
     return {
-      sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '' OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))`,
+      sql: `WHERE user_id = ? AND (visibility = 'public' OR visibility IS NULL OR visibility = '' OR (visibility = 'friends' AND (user_id IN (SELECT target_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted') OR user_id IN (SELECT requester_id FROM friends WHERE requester_id = ? AND target_id = ? AND status = 'accepted'))))` + disabled,
       params: [ownerId, viewerId, ownerId, ownerId, viewerId],
     };
   } catch (e) {
     if (/no such table: friends|no column named visibility/i.test(e?.message)) {
-      return { sql: 'WHERE user_id = ?', params: [ownerId] };
+      return { sql: 'WHERE user_id = ?' + disabled, params: [ownerId] };
     }
     throw e;
   }
@@ -1261,7 +1414,7 @@ async function enrichSoundsWithLikesComments(db, sounds, viewerId) {
     ).bind(...nums).all();
     (likeRows.results || []).forEach((r) => { likeCounts[r.sound_num] = r.c; });
     const commentRows = await db.prepare(
-      'SELECT sound_num, COUNT(*) as c FROM sound_comments WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') GROUP BY sound_num'
+      'SELECT sound_num, COUNT(*) as c FROM sound_comments WHERE sound_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) GROUP BY sound_num'
     ).bind(...nums).all();
     (commentRows.results || []).forEach((r) => { commentCounts[r.sound_num] = r.c; });
     if (viewerId) {
@@ -1289,7 +1442,7 @@ async function enrichPostsWithLikesComments(db, posts, viewerId) {
     ).bind(...nums).all();
     (likeRows.results || []).forEach((r) => { likeCounts[r.image_num] = r.c; });
     const commentRows = await db.prepare(
-      'SELECT image_num, COUNT(*) as c FROM comments WHERE image_num IN (' + nums.map(() => '?').join(',') + ') GROUP BY image_num'
+      'SELECT image_num, COUNT(*) as c FROM comments WHERE image_num IN (' + nums.map(() => '?').join(',') + ') AND (COALESCE(disabled,0) = 0) GROUP BY image_num'
     ).bind(...nums).all();
     (commentRows.results || []).forEach((r) => { commentCounts[r.image_num] = r.c; });
     if (viewerId) {
