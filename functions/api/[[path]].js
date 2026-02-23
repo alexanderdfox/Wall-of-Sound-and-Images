@@ -80,7 +80,10 @@ export async function onRequest(context) {
           username = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'user';
         } else throw e;
       }
-      const jwt = env.JWT_SECRET ? await signJwt({ sub: id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, String(env.JWT_SECRET || '').trim()) : null;
+      const secret = String(env.JWT_SECRET || '').trim();
+      if (!secret) return json({ error: 'Authentication is not configured. Please try again later.' }, 503);
+      const jwt = await signJwt({ sub: id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, secret);
+      if (!jwt) return json({ error: 'Session could not be established. Please try again.' }, 503);
       return json({ success: true, user: { id, username }, token: jwt });
     }
 
@@ -95,7 +98,10 @@ export async function onRequest(context) {
       const ok = await verifyPassword(password, user.password_hash);
       if (!ok) return json({ error: 'Invalid email or password' }, 401);
       const displayName = user.username || user.email?.split('@')[0] || 'user';
-      const jwt = env.JWT_SECRET ? await signJwt({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, String(env.JWT_SECRET || '').trim()) : null;
+      const secret = String(env.JWT_SECRET || '').trim();
+      if (!secret) return json({ error: 'Authentication is not configured. Please try again later.' }, 503);
+      const jwt = await signJwt({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 3600 }, secret);
+      if (!jwt) return json({ error: 'Session could not be established. Please try again.' }, 503);
       return json({ success: true, user: { id: user.id, username: displayName }, token: jwt });
     }
 
