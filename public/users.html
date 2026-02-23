@@ -140,6 +140,7 @@
 
     let currentPage = 1;
     async function loadUsers(page) {
+      page = Math.max(1, parseInt(page, 10) || 1);
       currentPage = page;
       const listEl = document.getElementById('users-list');
       const pagEl = document.getElementById('users-pagination');
@@ -218,10 +219,11 @@
         const total = data.total ?? 0;
         const per = data.per ?? 24;
         const totalPages = Math.max(1, Math.ceil(total / per));
+        const displayPage = data.page ?? page;
         pagEl.innerHTML = totalPages <= 1 ? '' : `
-          <button type="button" class="btn btn-ghost" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">← Prev</button>
-          <span>Page ${page} of ${totalPages}</span>
-          <button type="button" class="btn btn-ghost" ${page >= totalPages ? 'disabled' : ''} data-page="${page + 1}">Next →</button>
+          <button type="button" class="btn btn-ghost" ${displayPage <= 1 ? 'disabled' : ''} data-page="${Math.max(1, displayPage - 1)}">← Prev</button>
+          <span>Page ${displayPage} of ${totalPages}</span>
+          <button type="button" class="btn btn-ghost" ${displayPage >= totalPages ? 'disabled' : ''} data-page="${Math.min(totalPages, displayPage + 1)}">Next →</button>
         `;
         pagEl.querySelectorAll('button[data-page]').forEach((b) => {
           b.addEventListener('click', () => loadUsers(parseInt(b.dataset.page, 10)));
