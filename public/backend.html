@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backend — Tchoff</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme-loader.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .backend-page { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .backend-page h1 { font-size: 1.5rem; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .backend-page .subtitle { color: var(--text-muted); margin-bottom: 24px; font-size: 0.9rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 20px; font-size: 0.95rem; text-decoration: none; }
+    .back-link:hover { color: var(--text); }
+    .backend-denied { padding: 48px 24px; text-align: center; color: var(--text-muted); }
+    .backend-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 24px; }
+    .backend-section h2 { font-size: 1.1rem; margin-bottom: 16px; }
+    .report-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+    .report-item:last-child { border-bottom: none; }
+    .report-meta { font-size: 0.85rem; color: var(--text-muted); }
+    .report-reason { font-weight: 500; }
+    .report-link { font-size: 0.85rem; }
+    .report-link a { color: var(--accent); }
+    .pagination-backend { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo">Tchoff</a>
+    <nav class="nav">
+      <div class="nav-dropdown-wrap">
+        <button type="button" class="btn-icon nav-menu-btn" id="nav-menu-btn" aria-label="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" id="nav-dropdown" role="menu">
+          <a href="/" role="menuitem">Feed</a>
+          <a href="/babel.html" role="menuitem">Babel Library</a>
+          <a href="/sound.html" role="menuitem">Wall of Sound</a>
+          <a href="/soundboard.html" role="menuitem">Soundboard</a>
+          <a href="/dj.html" role="menuitem">DJ Table</a>
+          <a href="/movie-maker.html" role="menuitem">Movie Maker</a>
+          <a href="/hashes.html" role="menuitem">Image Hashes</a>
+          <a href="/sound-hashes.html" role="menuitem">Sound Hashes</a>
+          <a href="/themes.html" role="menuitem">Themes</a>
+          <a href="/#upload" role="menuitem">Upload Image</a>
+          <a href="/#upload-audio" role="menuitem">Upload Audio</a>
+          <a href="/#hash" role="menuitem">View by Hash</a>
+          <a href="/#auth" role="menuitem">Sign in / Account</a>
+          <a href="/terms.html" role="menuitem">Terms of Use</a>
+          <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+          <a href="/backend.html" role="menuitem">Backend</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="btn-auth" title="Sign in / Account">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="backend-page">
+    <a href="/" class="back-link">← Back to feed</a>
+    <h1>Backend</h1>
+    <p class="subtitle">Admin dashboard for the tchoff user. View and manage content reports.</p>
+
+    <div id="backend-denied" class="backend-denied" style="display:none">
+      <p>Access denied. Sign in as the admin user (tchoff) to access the backend.</p>
+      <p><a href="/#auth">Sign in</a></p>
+    </div>
+
+    <div id="backend-content" style="display:none">
+      <section class="backend-section">
+        <h2>Content Reports</h2>
+        <div id="reports-list"></div>
+        <div class="pagination-backend" id="reports-pagination"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/nav-dropdown.js"></script>
+  <script>
+    const API = '/api';
+    const authToken = localStorage.getItem('tchoff_token');
+
+    document.getElementById('btn-auth')?.addEventListener('click', () => { window.location.href = '/#auth'; });
+
+    async function init() {
+      if (!authToken) {
+        document.getElementById('backend-denied').style.display = 'block';
+        return;
+      }
+      const checkRes = await fetch(API + '/admin/check', { headers: { Authorization: 'Bearer ' + authToken } });
+      const { admin } = await checkRes.json().catch(() => ({ admin: false }));
+      if (!admin) {
+        document.getElementById('backend-denied').style.display = 'block';
+        return;
+      }
+      document.getElementById('backend-content').style.display = 'block';
+      loadReports(1);
+    }
+
+    async function loadReports(page) {
+      const list = document.getElementById('reports-list');
+      const pagEl = document.getElementById('reports-pagination');
+      list.innerHTML = '<p class="loading">Loading…</p>';
+      try {
+        const res = await fetch(`${API}/admin/reports?page=${page}&per=20`, { headers: { Authorization: 'Bearer ' + authToken } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const items = data.items || [];
+        list.innerHTML = items.length === 0
+          ? '<p class="report-meta">No reports yet.</p>'
+          : items.map((r) => {
+              const link = r.contentType === 'image'
+                ? (r.contentNum ? `/i/n/${r.contentNum}` : r.contentHash ? `/i/${r.contentHash}` : '#')
+                : (r.contentNum ? `/s/n/${r.contentNum}` : r.contentHash ? `/sound.html#${r.contentHash}` : '#');
+              const linkText = r.contentType === 'image' ? 'View image' : 'View sound';
+              return `
+                <div class="report-item">
+                  <div>
+                    <span class="report-reason">${r.reason}</span>
+                    <span class="report-meta"> · ${r.contentType} #${r.contentNum || r.contentHash?.slice(0, 12) || '?'}</span>
+                  </div>
+                  <div class="report-meta">@${r.reporterUsername} · ${r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
+                  ${r.details ? `<div class="report-meta" style="width:100%">${r.details}</div>` : ''}
+                  <div class="report-link"><a href="${link}" target="_blank" rel="noopener">${linkText} →</a></div>
+                </div>`;
+            }).join('');
+        const total = data.total ?? 0;
+        const per = data.per ?? 20;
+        const totalPages = Math.max(1, Math.ceil(total / per));
+        pagEl.innerHTML = totalPages <= 1 ? '' : `
+          <button type="button" class="btn btn-ghost" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">← Prev</button>
+          <span>Page ${page} of ${totalPages}</span>
+          <button type="button" class="btn btn-ghost" ${page >= totalPages ? 'disabled' : ''} data-page="${page + 1}">Next →</button>
+        `;
+        pagEl.querySelectorAll('button').forEach((b) => {
+          b.addEventListener('click', () => loadReports(parseInt(b.dataset.page, 10)));
+        });
+      } catch (err) {
+        list.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -140,6 +140,35 @@ export async function onRequest(context) {
       return json({ success: true, user: { id: payload.sub, username } });
     }
 
+    // PATCH /api/auth/password - change password (requires old password)
+    if (path === 'auth/password' && method === 'PATCH') {
+      const token = getBearerToken(request);
+      const secret = env.JWT_SECRET;
+      if (!token || !secret) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(secret || '').trim());
+      if (!payload?.sub) return json({ error: 'Sign in required' }, 401);
+
+      const body = await request.json().catch(() => ({}));
+      const oldPassword = body?.oldPassword;
+      const newPassword = body?.newPassword;
+
+      if (!oldPassword || !newPassword) return json({ error: 'Current password and new password required' }, 400);
+
+      const user = await db.prepare('SELECT id, password_hash FROM users WHERE id = ?').bind(payload.sub).first();
+      if (!user) return json({ error: 'User not found' }, 404);
+
+      const ok = await verifyPassword(oldPassword, user.password_hash);
+      if (!ok) return json({ error: 'Current password is incorrect' }, 401);
+
+      if (newPassword.length < 10) return json({ error: 'New password must be at least 10 characters' }, 400);
+      if (!/[a-zA-Z]/.test(newPassword)) return json({ error: 'New password must contain at least one letter' }, 400);
+      if (!/[0-9]/.test(newPassword)) return json({ error: 'New password must contain at least one number' }, 400);
+
+      const newHash = await hashPassword(newPassword);
+      await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(newHash, payload.sub).run();
+      return json({ success: true, message: 'Password updated' });
+    }
+
     // GET /api/themes - list user's themes + active theme
     if (path === 'themes' && method === 'GET') {
       const token = getBearerToken(request);
@@ -1046,6 +1075,60 @@ export async function onRequest(context) {
         throw e;
       }
       return json({ success: true, message: 'Report submitted. We will review it.' });
+    }
+
+    // Helper: check if user is admin (username tchoff or env ADMIN_USERNAME)
+    async function isAdmin(userId) {
+      if (!userId) return false;
+      const adminUsername = (env.ADMIN_USERNAME || 'tchoff').toString().trim().toLowerCase();
+      const user = await db.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first();
+      return user && (user.username || '').toLowerCase() === adminUsername;
+    }
+
+    // GET /api/admin/check - is current user admin?
+    if (path === 'admin/check' && method === 'GET') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ admin: false });
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      const admin = payload?.sub ? await isAdmin(payload.sub) : false;
+      return json({ admin: !!admin });
+    }
+
+    // GET /api/admin/reports - list reports (admin only)
+    if (path === 'admin/reports' && method === 'GET') {
+      const token = getBearerToken(request);
+      if (!token || !env.JWT_SECRET) return json({ error: 'Sign in required' }, 401);
+      const payload = await verifyJwt(token, String(env.JWT_SECRET || '').trim());
+      if (!payload?.sub || !(await isAdmin(payload.sub))) return json({ error: 'Admin access required' }, 403);
+
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(100, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 20));
+      const offset = (page - 1) * per;
+
+      try {
+        const countRow = await db.prepare('SELECT COUNT(*) as c FROM reports').first();
+        const rows = await db.prepare(
+          `SELECT r.id, r.content_type, r.content_num, r.content_hash, r.reason, r.details, r.created_at,
+            u.username as reporter_username FROM reports r
+           LEFT JOIN users u ON u.id = r.reporter_id
+           ORDER BY r.created_at DESC LIMIT ? OFFSET ?`
+        ).bind(per, offset).all();
+        const total = countRow?.c ?? 0;
+        const items = (rows.results || []).map((r) => ({
+          id: r.id,
+          contentType: r.content_type,
+          contentNum: r.content_num,
+          contentHash: r.content_hash,
+          reason: r.reason,
+          details: r.details || '',
+          createdAt: r.createdAt,
+          reporterUsername: r.reporter_username || '—',
+        }));
+        return json({ items, total, page, per });
+      } catch (e) {
+        if (/no such table: reports/i.test(e?.message)) return json({ items: [], total: 0, page: 1, per });
+        throw e;
+      }
     }
 
     // GET /api/exists/:id

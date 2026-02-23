@@ -672,6 +672,44 @@ document.getElementById('btn-edit-username').addEventListener('click', () => {
 document.getElementById('auth-username-cancel').addEventListener('click', () => {
   document.getElementById('auth-username-edit').style.display = 'none';
 });
+
+document.getElementById('btn-change-password').addEventListener('click', () => {
+  document.getElementById('auth-password-edit').style.display = 'block';
+  document.getElementById('auth-old-password').value = '';
+  document.getElementById('auth-new-password').value = '';
+  document.getElementById('auth-new-password-confirm').value = '';
+});
+document.getElementById('auth-password-cancel').addEventListener('click', () => {
+  document.getElementById('auth-password-edit').style.display = 'none';
+});
+document.getElementById('auth-password-save').addEventListener('click', async () => {
+  const oldPw = document.getElementById('auth-old-password').value;
+  const newPw = document.getElementById('auth-new-password').value;
+  const confirmPw = document.getElementById('auth-new-password-confirm').value;
+  if (!oldPw) { alert('Enter your current password'); return; }
+  if (!newPw) { alert('Enter a new password'); return; }
+  if (newPw !== confirmPw) { alert('New passwords do not match'); return; }
+  if (newPw.length < 10) { alert('New password must be at least 10 characters'); return; }
+  if (!/[a-zA-Z]/.test(newPw)) { alert('New password must contain at least one letter'); return; }
+  if (!/[0-9]/.test(newPw)) { alert('New password must contain at least one number'); return; }
+  try {
+    const res = await fetch(`${API}/auth/password`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+      body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to change password');
+    document.getElementById('auth-password-edit').style.display = 'none';
+    document.getElementById('auth-old-password').value = '';
+    document.getElementById('auth-new-password').value = '';
+    document.getElementById('auth-new-password-confirm').value = '';
+    alert('Password updated.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
 document.getElementById('auth-username-save').addEventListener('click', async () => {
   const username = document.getElementById('auth-username-input').value.trim().replace(/\s/g, '_');
   if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
@@ -929,29 +967,49 @@ function openUploadModalFromHash() {
   }
 }
 
-// Open modal from hash link (e.g. /#upload, /#upload-audio, /#hash)
-const hash = window.location.hash.slice(1).toLowerCase();
-if (hash === 'upload' || hash === 'upload-audio') {
-  if (!authToken) {
+// Loading screen: 5s splash then fade out, then show modals
+function runAfterLoadingScreen(callback) {
+  const el = document.getElementById('loading-screen');
+  if (!el) { callback(); return; }
+  setTimeout(() => {
+    el.classList.add('hidden');
+    setTimeout(() => {
+      el.remove();
+      callback();
+    }, 1200);
+  }, 5000);
+}
+
+function openModalFromHashOrAuth() {
+  const hash = window.location.hash.slice(1).toLowerCase();
+  if (hash === 'upload' || hash === 'upload-audio') {
+    if (!authToken) {
+      authModal.showModal();
+      document.getElementById('auth-logged-in').style.display = 'none';
+      document.getElementById('auth-forms').style.display = 'block';
+    } else {
+      switchUploadMediaTab(hash === 'upload-audio' ? 'audio' : 'image');
+      uploadModal.showModal();
+      resetUploadForm();
+    }
+    history.replaceState(null, '', window.location.pathname);
+  } else if (hash === 'hash') {
+    hashModal.showModal();
+    hashInput.value = '';
+    hashResult.innerHTML = '';
+    hashInput.focus();
+    history.replaceState(null, '', window.location.pathname);
+  } else if (hash === 'auth') {
+    authModal.showModal();
+    history.replaceState(null, '', window.location.pathname);
+  } else if (!authToken) {
     authModal.showModal();
     document.getElementById('auth-logged-in').style.display = 'none';
     document.getElementById('auth-forms').style.display = 'block';
-  } else {
-    switchUploadMediaTab(hash === 'upload-audio' ? 'audio' : 'image');
-    uploadModal.showModal();
-    resetUploadForm();
   }
-  history.replaceState(null, '', window.location.pathname);
-} else if (hash === 'hash') {
-  hashModal.showModal();
-  hashInput.value = '';
-  hashResult.innerHTML = '';
-  hashInput.focus();
-  history.replaceState(null, '', window.location.pathname);
-} else if (hash === 'auth') {
-  authModal.showModal();
-  history.replaceState(null, '', window.location.pathname);
 }
+
+runAfterLoadingScreen(openModalFromHashOrAuth);
 
 window.addEventListener('hashchange', () => {
   const h = window.location.hash.slice(1).toLowerCase();

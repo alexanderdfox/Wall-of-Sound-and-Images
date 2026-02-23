@@ -1,3 +1,5 @@
 # Copy to .dev.vars and set your values. .dev.vars is gitignored.
 # Generate: openssl rand -hex 32
 JWT_SECRET=your-secret-here
+# Optional: admin username for backend (default: tchoff)
+# ADMIN_USERNAME=tchoff

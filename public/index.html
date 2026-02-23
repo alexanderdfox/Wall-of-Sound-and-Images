@@ -11,6 +11,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-screen-inner">
+      <a href="/" class="logo loading-logo">Tchoff</a>
+      <p class="loading-tagline">Hash-based gallery</p>
+      <div class="loading-progress"></div>
+    </div>
+  </div>
+
   <header class="header">
     <a href="/" class="logo">Tchoff</a>
     <nav class="nav">
@@ -36,6 +44,7 @@
           <a href="/#auth" role="menuitem">Sign in / Account</a>
           <a href="/terms.html" role="menuitem">Terms of Use</a>
           <a href="/privacy.html" role="menuitem">Privacy Policy</a>
+          <a href="/backend.html" role="menuitem">Backend</a>
         </div>
       </div>
       <button class="btn-icon" id="btn-upload" title="Upload">
@@ -92,8 +101,19 @@
             <button type="button" class="btn btn-primary" id="auth-username-save">Save</button>
           </div>
         </div>
+        <div id="auth-password-edit" style="display:none; margin-bottom:16px">
+          <input type="password" id="auth-old-password" placeholder="Current password" autocomplete="current-password">
+          <input type="password" id="auth-new-password" placeholder="New password (min 10 chars, letters + numbers)" autocomplete="new-password">
+          <input type="password" id="auth-new-password-confirm" placeholder="Confirm new password" autocomplete="new-password">
+          <p class="modal-hint" style="margin-top:8px;font-size:0.8rem">Min 10 characters, at least one letter and one number. Special characters allowed.</p>
+          <div class="modal-actions" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost" id="auth-password-cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" id="auth-password-save">Change password</button>
+          </div>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="btn-edit-username">Change username</button>
+          <button type="button" class="btn btn-ghost" id="btn-change-password">Change password</button>
           <button type="button" class="btn btn-ghost" id="btn-logout">Log out</button>
         </div>
         <div class="friends-section" id="friends-section">
