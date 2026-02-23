@@ -216,7 +216,7 @@ async function openSoundModal(sound, profileUsername) {
       const data = res.ok ? await res.json() : { comments: [] };
       const list = soundModalBody.querySelector('#sound-comments-list');
       list.innerHTML = (data.comments || []).map((c) =>
-        `<div class="comment">${(c.userId || c.username) ? `<a href="/u/${encodeURIComponent(c.userId || c.username || '')}" class="comment-user">@${escapeHtml(c.username || '')}</a>` : `<span class="comment-user">@${escapeHtml(c.username || '')}</span>`} ${escapeHtml(c.text)}</div>`
+        `<div class="comment">${(c.userId || c.username) ? `<a href="/u/${encodeURIComponent(c.userId || c.username || '')}" class="comment-user">@${escapeHtml(c.username || '')}</a>` : `<span class="comment-user">@${escapeHtml(c.username || '')}</span>`} ${typeof renderCommentText === 'function' ? renderCommentText(c.text) : escapeHtml(c.text)}</div>`
       ).join('') || '<p class="no-comments">No comments yet</p>';
     } catch (_) {
       soundModalBody.querySelector('#sound-comments-list').innerHTML = '<p class="no-comments">Failed to load</p>';
@@ -254,7 +254,7 @@ async function openSoundModal(sound, profileUsername) {
         input.value = '';
         const list = soundModalBody.querySelector('#sound-comments-list');
         list.innerHTML = data.comments.map((c) =>
-          `<div class="comment">${(c.userId || c.username) ? `<a href="/u/${encodeURIComponent(c.userId || c.username || '')}" class="comment-user">@${escapeHtml(c.username || '')}</a>` : `<span class="comment-user">@${escapeHtml(c.username || '')}</span>`} ${escapeHtml(c.text)}</div>`
+          `<div class="comment">${(c.userId || c.username) ? `<a href="/u/${encodeURIComponent(c.userId || c.username || '')}" class="comment-user">@${escapeHtml(c.username || '')}</a>` : `<span class="comment-user">@${escapeHtml(c.username || '')}</span>`} ${typeof renderCommentText === 'function' ? renderCommentText(c.text) : escapeHtml(c.text)}</div>`
         ).join('') || '<p class="no-comments">No comments yet</p>';
         const cc = soundModalBody.querySelector('.comment-count');
         if (cc) cc.textContent = data.comments.length;
