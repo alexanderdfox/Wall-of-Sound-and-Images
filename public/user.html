@@ -46,18 +46,22 @@
 
   <main class="main user-page">
     <div id="user-info" class="user-info"></div>
-    <section id="sounds-section" class="user-sounds-section" style="display:none">
+    <section id="sounds-section" class="user-sounds-section">
       <h2 class="section-title">Sounds</h2>
-      <div class="sounds-grid" id="sounds-grid"></div>
+      <div class="sounds-grid grid-4x10" id="sounds-grid"></div>
+      <div class="empty-state" id="sounds-empty-state" style="display:none">
+        <p>No sounds yet.</p>
+      </div>
+      <nav class="pagination" id="sounds-pagination"></nav>
     </section>
     <section class="user-images-section">
       <h2 class="section-title">Images</h2>
-      <div class="feed-grid grid-4x4" id="feed-grid"></div>
+      <div class="feed-grid grid-4x10" id="feed-grid"></div>
       <div class="empty-state" id="empty-state" style="display:none">
         <p>No images yet.</p>
       </div>
+      <nav class="pagination" id="pagination"></nav>
     </section>
-    <nav class="pagination" id="pagination"></nav>
   </main>
 
   <dialog class="modal" id="follow-modal">

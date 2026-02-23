@@ -1,4 +1,4 @@
-const PER_PAGE = 16;
+const PER_PAGE = 40;
 const postModal = document.getElementById('post-modal');
 const lightboxBody = document.getElementById('lightbox-body');
 
@@ -25,13 +25,14 @@ async function loadUserPage() {
     const [userRes, imagesRes, soundsRes] = await Promise.all([
       fetch(`${API}/user/${userId}`),
       fetch(`${API}/user/${userId}/images?page=1&per=${PER_PAGE}`, { headers }),
-      fetch(`${API}/user/${userId}/sounds`, { headers }),
+      fetch(`${API}/user/${userId}/sounds?page=1&per=${PER_PAGE}`, { headers }),
     ]);
 
     const userData = userRes.ok ? await userRes.json() : null;
     const imagesData = imagesRes.ok ? await imagesRes.json() : { items: [], total: 0 };
-    const soundsData = soundsRes.ok ? await soundsRes.json() : { items: [] };
+    const soundsData = soundsRes.ok ? await soundsRes.json() : { items: [], total: 0 };
     const sounds = soundsData.items || [];
+    const soundsTotal = soundsData.total ?? sounds.length;
 
     if (!userData) {
       userInfoEl.innerHTML = '<p class="error">User not found</p>';
@@ -53,15 +54,17 @@ async function loadUserPage() {
       </div>
       <div class="user-stats">
         <span>${imagesData.total || 0} images</span>
-        <span>${sounds.length} sounds</span>
+        <span>${soundsTotal} sounds</span>
         <button type="button" class="user-stat-link" data-type="followers">${userData.followerCount ?? 0} followers</button>
         <button type="button" class="user-stat-link" data-type="following">${userData.followingCount ?? 0} following</button>
       </div>
     `;
 
     renderSoundsGrid(document.getElementById('sounds-grid'), sounds, userData.username);
-    const soundsSection = document.getElementById('sounds-section');
-    if (soundsSection) soundsSection.style.display = sounds.length ? 'block' : 'none';
+    const soundsEmptyState = document.getElementById('sounds-empty-state');
+    const soundsPaginationEl = document.getElementById('sounds-pagination');
+    if (soundsEmptyState) soundsEmptyState.style.display = sounds.length ? 'none' : 'block';
+    renderSoundsPagination(soundsPaginationEl, soundsTotal, 1, userId);
 
     renderGrid(grid, imagesData.items || []);
     emptyState.style.display = (imagesData.items?.length || 0) === 0 ? 'block' : 'none';
@@ -88,10 +91,66 @@ async function loadPage(page) {
 
     renderGrid(grid, data.items || []);
     renderPagination(paginationEl, data.total || 0, page, userId);
+    document.getElementById('empty-state').style.display = (data.items?.length || 0) === 0 ? 'block' : 'none';
     window.scrollTo(0, 0);
   } catch (err) {
     console.error(err);
   }
+}
+
+async function loadSoundsPage(page) {
+  const userId = getUserIdFromPath();
+  if (!userId) return;
+
+  const grid = document.getElementById('sounds-grid');
+  const paginationEl = document.getElementById('sounds-pagination');
+  const emptyState = document.getElementById('sounds-empty-state');
+  const userInfoEl = document.getElementById('user-info');
+  const username = userInfoEl?.querySelector('.user-username')?.textContent?.replace('@', '') || 'user';
+
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tchoff_token') : null;
+  const headers = authToken ? { Authorization: 'Bearer ' + authToken } : {};
+  try {
+    const res = await fetch(`${API}/user/${userId}/sounds?page=${page}&per=${PER_PAGE}`, { headers });
+    const data = res.ok ? await res.json() : { items: [], total: 0 };
+
+    renderSoundsGrid(grid, data.items || [], username);
+    renderSoundsPagination(paginationEl, data.total || 0, page, userId);
+    if (emptyState) emptyState.style.display = (data.items?.length || 0) === 0 ? 'block' : 'none';
+    const soundsStat = userInfoEl?.querySelector('.user-stats span:nth-of-type(2)');
+    if (soundsStat) soundsStat.textContent = (data.total || 0) + ' sounds';
+    window.scrollTo(0, document.getElementById('sounds-section')?.offsetTop || 0);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderSoundsPagination(el, total, page, userId) {
+  if (!el) return;
+  el.innerHTML = '';
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  if (totalPages <= 1) return;
+
+  const prev = document.createElement('a');
+  prev.href = page > 1 ? `/u/${userId}?soundsPage=${page - 1}` : '#';
+  prev.className = 'btn btn-ghost pagination-btn' + (page <= 1 ? ' disabled' : '');
+  prev.textContent = '← Previous';
+  if (page <= 1) prev.onclick = (e) => e.preventDefault();
+  else prev.onclick = (e) => { e.preventDefault(); loadSoundsPage(page - 1); };
+  el.appendChild(prev);
+
+  const info = document.createElement('span');
+  info.className = 'pagination-info';
+  info.textContent = `Page ${page} of ${totalPages}`;
+  el.appendChild(info);
+
+  const next = document.createElement('a');
+  next.href = page < totalPages ? `/u/${userId}?soundsPage=${page + 1}` : '#';
+  next.className = 'btn btn-ghost pagination-btn' + (page >= totalPages ? ' disabled' : '');
+  next.textContent = 'Next →';
+  if (page >= totalPages) next.onclick = (e) => e.preventDefault();
+  else next.onclick = (e) => { e.preventDefault(); loadSoundsPage(page + 1); };
+  el.appendChild(next);
 }
 
 const soundModal = document.getElementById('sound-modal');
@@ -321,7 +380,10 @@ function attachUserPageListeners(userId, userData) {
   });
 }
 
-const pageParam = new URLSearchParams(window.location.search).get('page');
+const urlParams = new URLSearchParams(window.location.search);
+const pageParam = urlParams.get('page');
+const soundsPageParam = urlParams.get('soundsPage');
 loadUserPage().then(() => {
   if (pageParam) loadPage(parseInt(pageParam, 10) || 1);
+  if (soundsPageParam) loadSoundsPage(parseInt(soundsPageParam, 10) || 1);
 });

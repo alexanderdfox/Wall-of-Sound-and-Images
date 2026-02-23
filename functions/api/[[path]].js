@@ -181,12 +181,23 @@ export async function onRequest(context) {
       }
       const canViewOwn = viewerId === id;
       const where = buildUserSoundsWhere(id, viewerId, canViewOwn);
-      const rows = await db.prepare(
-        `SELECT num, hash, caption, duration, created_at as createdAt, user_id as userId FROM sounds ${where.sql} ORDER BY num DESC LIMIT 24`
-      ).bind(...where.params).all().catch(() => ({ results: [] }));
+      const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+      const per = Math.min(40, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 40));
+      const offset = (page - 1) * per;
+      let countRow, rows;
+      try {
+        countRow = await db.prepare(`SELECT COUNT(*) as c FROM sounds ${where.sql}`).bind(...where.params).first();
+        rows = await db.prepare(
+          `SELECT num, hash, caption, duration, created_at as createdAt, user_id as userId FROM sounds ${where.sql} ORDER BY num DESC LIMIT ? OFFSET ?`
+        ).bind(...where.params, per, offset).all().catch(() => ({ results: [] }));
+      } catch (e) {
+        countRow = { c: 0 };
+        rows = { results: [] };
+      }
+      const total = countRow?.c ?? 0;
       const raw = (rows.results || []).map((r) => ({ ...r, username: user.username || 'user' }));
       const items = await enrichSoundsWithLikesComments(db, raw, viewerId);
-      return json({ items, user: { id: user.id, username: user.username || 'user' } });
+      return json({ items, total, page, per, user: { id: user.id, username: user.username || 'user' } });
     }
 
     // GET /api/user/:id/images (must be before /api/user/:id)
@@ -205,7 +216,7 @@ export async function onRequest(context) {
       const canViewOwn = viewerId === id;
       const userImagesWhere = buildUserImagesWhere(id, viewerId, canViewOwn);
       const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
-      const per = Math.min(24, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 16));
+      const per = Math.min(40, Math.max(1, parseInt(url.searchParams.get('per'), 10) || 40));
       const offset = (page - 1) * per;
       let countRow, rows;
       try {
