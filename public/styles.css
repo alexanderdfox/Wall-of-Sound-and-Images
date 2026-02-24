@@ -146,6 +146,12 @@ body {
   border-color: var(--text-muted);
 }
 
+#btn-shoot.active {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Nav dropdown menu */
 .nav-dropdown-wrap { position: relative; }
 .nav-menu-btn { flex-shrink: 0; }
