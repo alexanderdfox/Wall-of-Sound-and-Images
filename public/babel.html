@@ -151,6 +151,7 @@
   <script src="/nav-dropdown.js"></script>
   <script src="/emoji-data.js"></script>
   <script src="/shoot.js"></script>
+  <script src="/rockstar.js"></script>
   <script>
     const API = '/api';
     let currentLocation = null;
@@ -196,7 +197,19 @@
     }
 
     function seek() {
-      const val = locationInput.value.trim().toLowerCase().replace(/[^a-f0-9]/g, '').padStart(64, '0').slice(-64);
+      const raw = locationInput.value.trim();
+      if (raw.toLowerCase() === 'rockstar') {
+        if (typeof window.rockstar === 'function') window.rockstar();
+        img.style.display = 'none';
+        placeholder.style.display = 'block';
+        placeholder.textContent = '🎸 But only those who slay the shadows truly rock 🎸';
+        placeholder.classList.remove('loading');
+        locationDisplay.textContent = 'rockstar';
+        document.getElementById('babel-meta').classList.remove('found');
+        dbStatus.innerHTML = 'Check the console. The dream is alive. The bug is gone.';
+        return;
+      }
+      const val = raw.toLowerCase().replace(/[^a-f0-9]/g, '').padStart(64, '0').slice(-64);
       if (val.length === 64) showImage(val);
       else locationInput.placeholder = 'Enter 64 hex characters (0-9, a-f)';
     }
