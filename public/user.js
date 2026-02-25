@@ -296,6 +296,15 @@ function renderGrid(grid, posts) {
       if (typeof openPost === 'function') openPost(post, postModal, lightboxBody);
     });
     grid.appendChild(card);
+    const wrap = card.querySelector('.post-image-wrap');
+    if (wrap && typeof window.initScratchOff === 'function') {
+      const img = wrap.querySelector('.post-image');
+      if (img) {
+        const init = () => requestAnimationFrame(() => window.initScratchOff(wrap));
+        if (img.complete) setTimeout(init, 50);
+        else img.addEventListener('load', init);
+      }
+    }
   });
 }
 
