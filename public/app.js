@@ -40,7 +40,8 @@ let authToken = localStorage.getItem('tchoff_token');
 
 function userLink(post) {
   const un = post.username || '';
-  if (post.userId) return `<a href="/u/${encodeURIComponent(post.userId)}" class="post-user-link">@${escapeHtml(un)}</a>`;
+  const id = (un && /^[a-zA-Z0-9_-]+$/.test(un)) ? un : (post.userId || '');
+  if (id) return `<a href="/u/${encodeURIComponent(id)}" class="post-user-link">@${escapeHtml(un)}</a>`;
   return `<span class="post-user">@${escapeHtml(un)}</span>`;
 }
 
@@ -83,7 +84,10 @@ function renderFeed(posts) {
         ${(post.createdAt || post.originIp) ? `<div class="post-meta-small">${post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}${post.createdAt && post.originIp ? ' · ' : ''}${post.originIp || ''}</div>` : ''}
       </div>
     `;
-    card.addEventListener('click', () => openPost(post, postModal, lightboxBody));
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a.post-user-link')) return;
+      openPost(post, postModal, lightboxBody);
+    });
     feedGrid.appendChild(card);
     const wrap = card.querySelector('.post-image-wrap');
     if (wrap && typeof window.initScratchOff === 'function') {

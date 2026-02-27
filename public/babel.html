@@ -81,6 +81,8 @@
     }
     .babel-meta.found { border-color: var(--accent); color: var(--accent); }
     .babel-meta .location { font-family: var(--font-mono); word-break: break-all; font-size: 0.8rem; }
+    .babel-meta .user-handle-link { color: inherit; text-decoration: underline; }
+    .babel-meta .user-handle-link:hover { color: var(--accent); }
     .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; }
     .back-link:hover { color: var(--text); }
   </style>
@@ -156,6 +158,13 @@
     const API = '/api';
     let currentLocation = null;
 
+    function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function userLink(post) {
+      const un = post?.username || post?.userId || '?';
+      const id = (post?.username && /^[a-zA-Z0-9_-]+$/.test(post.username)) ? post.username : (post?.userId || un);
+      return `<a href="/u/${encodeURIComponent(id)}" class="user-handle-link">@${escapeHtml(un)}</a>`;
+    }
+
     const img = document.getElementById('babel-image');
     const placeholder = document.getElementById('babel-placeholder');
     const locationInput = document.getElementById('location-input');
@@ -192,7 +201,7 @@
       const metaEl = document.getElementById('babel-meta');
       metaEl.classList.toggle('found', !!inDb);
       dbStatus.innerHTML = inDb
-        ? `✓ In database · #${existsData.post?.num ?? '?'} · @${existsData.post?.username ?? '?'}${existsData.post?.caption ? ' · ' + existsData.post.caption : ''}`
+        ? `✓ In database · #${existsData.post?.num ?? '?'} · ${userLink(existsData.post)}${existsData.post?.caption ? ' · ' + escapeHtml(existsData.post.caption) : ''}`
         : 'Not in database — undiscovered location';
     }
 
