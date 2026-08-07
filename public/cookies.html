@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cookies &amp; Privacy Choices — Tchoff</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff;
+      --fg: #111;
+      --muted: #555;
+      --border: #ddd;
+      --accent: #0b57d0;
+      --card: #f8f8f8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #eee;
+        --muted: #aaa;
+        --border: #333;
+        --accent: #8ab4f8;
+        --card: #1a1a1a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    a.back {
+      display: inline-block;
+      margin-bottom: 28px;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    a.back:hover { text-decoration: underline; }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+    }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 32px 0 12px 0;
+    }
+    p, li { color: var(--fg); }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    .updated { color: var(--muted); font-size: 0.875rem; margin-bottom: 28px; }
+
+    /* Settings card */
+    .settings {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 22px;
+      margin: 24px 0;
+    }
+    .settings h2 {
+      margin-top: 0;
+      font-size: 1.05rem;
+    }
+    .cat {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cat:last-of-type { border-bottom: none; }
+    .cat input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 3px;
+      accent-color: var(--fg);
+      flex-shrink: 0;
+    }
+    .cat input[type="checkbox"]:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .cat label {
+      flex: 1;
+      cursor: pointer;
+    }
+    .cat strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+    .cat span {
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--fg);
+      color: var(--bg);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--fg);
+      border-color: var(--border);
+    }
+    .status {
+      margin-top: 14px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      min-height: 1.3em;
+    }
+    .status.ok { color: #0a7a3e; }
+    @media (prefers-color-scheme: dark) {
+      .status.ok { color: #6dce97; }
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 12px 0 8px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: var(--card);
+      font-weight: 600;
+    }
+    ul { padding-left: 1.25em; }
+    li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Back to feed</a>
+
+    <h1>Cookies &amp; Privacy Choices</h1>
+    <p class="updated">Last updated: August 2026</p>
+
+    <p>
+      This page explains how Tchoff uses cookies and similar technologies
+      (including localStorage) and lets you change your preferences at any time.
+      It works together with our
+      <a href="/privacy">Privacy Policy</a>.
+    </p>
+
+    <!-- Interactive settings -->
+    <div class="settings" id="settings-panel">
+      <h2>Your privacy choices</h2>
+      <p class="muted" style="margin-top:0">
+        These settings are stored only in your browser. You can change them whenever you like.
+      </p>
+
+      <div class="cat">
+        <input type="checkbox" id="cat-necessary" checked disabled>
+        <label for="cat-necessary">
+          <strong>Necessary</strong>
+          <span>Required for the site to function (session, security, basic preferences). Always active.</span>
+        </label>
+      </div>
+      <div class="cat">
+        <input type="checkbox" id="cat-analytics">
+        <label for="cat-analytics">
+          <strong>Analytics</strong>
+          <span>Help us understand traffic and improve the Service (page views, basic usage).</span>
+        </label>
+      </div>
+      <div class="cat">
+        <input type="checkbox" id="cat-preferences">
+        <label for="cat-preferences">
+          <strong>Preferences</strong>
+          <span>Remember non-essential choices (e.g. interface preferences) across visits.</span>
+        </label>
+      </div>
+      <div class="cat">
+        <input type="checkbox" id="cat-marketing">
+        <label for="cat-marketing">
+          <strong>Marketing / targeted advertising</strong>
+          <span>Used for relevant ads or measuring ad performance. Also controls “sale” / “sharing” under US state privacy laws.</span>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btn-save">Save choices</button>
+        <button type="button" class="btn-secondary" id="btn-accept-all">Accept all</button>
+        <button type="button" class="btn-secondary" id="btn-reject">Reject non-essential</button>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
+
+    <h2>1. What we use</h2>
+    <p>
+      Tchoff is designed to be lightweight. We primarily rely on first-party storage
+      rather than third-party advertising networks.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name / type</th>
+          <th>Purpose</th>
+          <th>Duration</th>
+          <th>Category</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>localStorage</code> session token</td>
+          <td>Keep you signed in</td>
+          <td>Until you sign out or clear storage</td>
+          <td>Necessary</td>
+        </tr>
+        <tr>
+          <td><code>privacy_prefs_v1</code></td>
+          <td>Store your cookie / privacy choices</td>
+          <td>Until you clear storage</td>
+          <td>Necessary</td>
+        </tr>
+        <tr>
+          <td>Cloudflare (hosting / security)</td>
+          <td>Delivery, DDoS protection, basic security</td>
+          <td>Session / as set by Cloudflare</td>
+          <td>Necessary</td>
+        </tr>
+        <tr>
+          <td>Optional analytics (if enabled)</td>
+          <td>Aggregate traffic measurement</td>
+          <td>Varies by tool</td>
+          <td>Analytics</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">
+      We do not currently use third-party advertising or marketing pixels by default.
+      If that changes, this page and the consent banner will be updated.
+    </p>
+
+    <h2>2. How your choices work</h2>
+    <ul>
+      <li><strong>EU / UK / EEA visitors</strong> — non-essential technologies require your prior consent (opt-in).</li>
+      <li><strong>US visitors</strong> — you can opt out of sale, sharing, and targeted advertising. We also honor the
+        <a href="https://globalprivacycontrol.org/" target="_blank" rel="noopener noreferrer">Global Privacy Control (GPC)</a>
+        signal when your browser sends it.</li>
+      <li>Your choices are stored in <code>localStorage</code> under the key <code>privacy_prefs_v1</code> and apply on this device/browser only.</li>
+      <li>Clearing site data or using a different browser resets the stored choice.</li>
+    </ul>
+
+    <h2>3. US state privacy (including Texas TDPSA)</h2>
+    <p>
+      If you are a resident of a US state with a comprehensive privacy law
+      (for example California CCPA/CPRA, Texas TDPSA, Colorado, Connecticut, and others),
+      you may have the right to opt out of the “sale” or “sharing” of personal information
+      and of targeted advertising. Use the controls above or the banner on the site.
+      Turning off Marketing / targeted advertising is treated as an opt-out of sale/sharing
+      and targeted advertising for those laws.
+    </p>
+
+    <h2>4. Your rights</h2>
+    <p>
+      Depending on where you live you may have rights to access, correct, delete, or
+      obtain a copy of personal data, and to object to or restrict certain processing.
+      See our <a href="/privacy">Privacy Policy</a> for details and how to contact us.
+    </p>
+
+    <h2>5. Changes</h2>
+    <p>
+      We may update this page when our practices change. The “Last updated” date at the
+      top reflects the current version. Continued use of the Service after changes
+      constitutes acceptance of the updated notice.
+    </p>
+
+    <p class="muted" style="margin-top:40px">
+      This page is provided for transparency and is not legal advice.
+    </p>
+  </div>
+
+  <script>
+  (function () {
+    const STORAGE_KEY = 'privacy_prefs_v1';
+
+    const els = {
+      analytics: document.getElementById('cat-analytics'),
+      preferences: document.getElementById('cat-preferences'),
+      marketing: document.getElementById('cat-marketing'),
+      status: document.getElementById('status'),
+      save: document.getElementById('btn-save'),
+      acceptAll: document.getElementById('btn-accept-all'),
+      reject: document.getElementById('btn-reject'),
+    };
+
+    function getPrefs() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function setPrefs(prefs) {
+      const toStore = {
+        model: prefs.model || (prefs.saleShareOptOut !== undefined ? 'us' : 'eu'),
+        necessary: true,
+        analytics: !!prefs.analytics,
+        preferences: !!prefs.preferences,
+        marketing: !!prefs.marketing,
+        saleShareOptOut: prefs.saleShareOptOut !== undefined
+          ? !!prefs.saleShareOptOut
+          : !prefs.marketing,
+        updatedAt: new Date().toISOString(),
+        source: prefs.source || 'cookies-page',
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+
+      // Keep global object in sync if the banner script is also present
+      window.__PRIVACY__ = {
+        model: toStore.model,
+        necessary: true,
+        analytics: toStore.analytics,
+        marketing: toStore.marketing,
+        preferences: toStore.preferences,
+        saleShareOptOut: toStore.saleShareOptOut,
+        targetedAdsOptOut: toStore.saleShareOptOut,
+        gpc: typeof navigator !== 'undefined' && navigator.globalPrivacyControl === true,
+        updatedAt: toStore.updatedAt,
+        source: toStore.source,
+      };
+
+      return toStore;
+    }
+
+    function loadIntoUI() {
+      const p = getPrefs();
+      if (!p) {
+        // Defaults: everything non-essential off (stricter)
+        els.analytics.checked = false;
+        els.preferences.checked = false;
+        els.marketing.checked = false;
+        return;
+      }
+      els.analytics.checked = !!p.analytics;
+      els.preferences.checked = !!p.preferences;
+      // Marketing off if explicit opt-out or marketing flag false
+      els.marketing.checked = p.saleShareOptOut ? false : !!p.marketing;
+    }
+
+    function showStatus(msg, ok) {
+      els.status.textContent = msg;
+      els.status.className = 'status' + (ok ? ' ok' : '');
+    }
+
+    function saveFromUI(source) {
+      const analytics = els.analytics.checked;
+      const preferences = els.preferences.checked;
+      const marketing = els.marketing.checked;
+      setPrefs({
+        analytics,
+        preferences,
+        marketing,
+        saleShareOptOut: !marketing,
+        source: source || 'cookies-page',
+      });
+      showStatus('Preferences saved.', true);
+    }
+
+    // Init
+    loadIntoUI();
+
+    els.save.onclick = () => saveFromUI('cookies-page-save');
+    els.acceptAll.onclick = () => {
+      els.analytics.checked = true;
+      els.preferences.checked = true;
+      els.marketing.checked = true;
+      saveFromUI('cookies-page-accept-all');
+    };
+    els.reject.onclick = () => {
+      els.analytics.checked = false;
+      els.preferences.checked = false;
+      els.marketing.checked = false;
+      saveFromUI('cookies-page-reject');
+    };
+  })();
+  </script>
+</body>
+</html>
