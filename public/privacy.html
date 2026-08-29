@@ -20,6 +20,11 @@
     .legal-page a:hover { text-decoration: underline; }
     .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; text-decoration: none; }
     .back-link:hover { color: var(--text); }
+
+    .legal-page table { width: 100%; border-collapse: collapse; margin: 16px 0 20px; font-size: 0.9rem; }
+    .legal-page th, .legal-page td { border: 1px solid var(--border, #333); padding: 10px 12px; text-align: left; vertical-align: top; }
+    .legal-page th { background: var(--bg-card, #1a1a1a); color: var(--text-muted); font-weight: 600; }
+    .legal-page code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.85em; background: var(--bg-card, #1a1a1a); padding: 2px 6px; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -65,10 +70,10 @@
     </nav>
   </header>
 
-  <main class="legal-page">
+    <main class="legal-page">
     <a href="/" class="back-link">← Back to feed</a>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: February 2025</p>
+    <p class="updated">Last updated: August 2026</p>
 
     <h2>1. Introduction</h2>
     <p>Tchoff (“we,” “our,” or “the Service”) respects your privacy. This policy describes what data we collect, how we use it, and your rights. By using the Service, you agree to this policy and our <a href="/terms.html">Terms of Use</a>.</p>
@@ -78,6 +83,7 @@
     <p><strong>Content:</strong> Images, audio, captions, and metadata you upload. We store and serve this to operate the Service.</p>
     <p><strong>Reports:</strong> When you report content, we store the report details, your user ID, and content identifiers for review.</p>
     <p><strong>Usage:</strong> We may log IP addresses, request metadata, and error logs for security, abuse prevention, and debugging. Data is retained only as necessary.</p>
+    <p><strong>Region detection (privacy banner only):</strong> On first visit we may call a free geo-IP service (ipapi.co) solely to choose the correct consent model (EU opt-in vs US opt-out). This request is not used for advertising or profiling.</p>
 
     <h2>3. How We Use Data</h2>
     <p>We use your data to: provide and improve the Service; authenticate you; store and display your content; process reports; enforce our Terms; comply with legal obligations; and protect security. We do not sell your personal data.</p>
@@ -91,12 +97,62 @@
 
     <h2>6. Your Rights</h2>
     <p>You may: access your account data; update your username; disable your account (takes effect after 30 days; data retained but content hidden); and request information about the data we hold. Residents of the EU/EEA and California may have additional rights under GDPR and CCPA. Contact us to exercise these rights.</p>
+    <p>We honor the Global Privacy Control (GPC) signal. When GPC is present we treat it as an opt-out of sale/share and non-essential tracking.</p>
 
     <h2>7. Cookies and Storage</h2>
-    <p>We use localStorage to store your session token for signed-in users. We do not use third-party advertising or tracking cookies.</p>
+    <p>We do <strong>not</strong> set third-party advertising or tracking cookies. We primarily use browser <strong>localStorage</strong> (not HTTP cookies) for essential and preference data. Details:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name / Key</th>
+          <th>Type</th>
+          <th>Purpose</th>
+          <th>Duration</th>
+          <th>Category</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>tchoff_token</code></td>
+          <td>localStorage</td>
+          <td>Stores the JWT session token so you stay signed in</td>
+          <td>Until you sign out or clear site data</td>
+          <td>Necessary</td>
+        </tr>
+        <tr>
+          <td><code>privacy_prefs_v1</code></td>
+          <td>localStorage</td>
+          <td>Stores your privacy/consent choices (analytics, marketing, preferences, sale/share opt-out, region model, timestamp)</td>
+          <td>Persistent until you change or clear it</td>
+          <td>Necessary</td>
+        </tr>
+        <tr>
+          <td><code>tchoff_themes</code></td>
+          <td>localStorage</td>
+          <td>Saves custom theme definitions you create</td>
+          <td>Persistent until cleared</td>
+          <td>Preferences</td>
+        </tr>
+        <tr>
+          <td><code>tchoff_active_theme</code></td>
+          <td>localStorage</td>
+          <td>Stores the currently active theme colors</td>
+          <td>Persistent until cleared or changed</td>
+          <td>Preferences</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><strong>Necessary</strong> storage is required for the Service to function (authentication, remembering consent).</li>
+      <li><strong>Preferences</strong> storage is used only for UI themes you choose.</li>
+      <li>Analytics and marketing categories exist in the consent system but are currently <strong>not</strong> loaded with any third-party scripts; the hooks are present for future use and remain off unless you opt in (EU) or do not opt out (US).</li>
+      <li>We may use Cloudflare’s standard security / edge features. Cloudflare may set its own strictly necessary cookies (e.g. for bot management or load balancing) that we do not control.</li>
+      <li>You can clear all of the above at any time via your browser’s site-data / storage settings. Clearing <code>tchoff_token</code> signs you out; clearing <code>privacy_prefs_v1</code> will show the consent banner again on the next visit.</li>
+    </ul>
+    <p>We do not use third-party advertising cookies, fingerprinting for ads, or cross-site tracking.</p>
 
     <h2>8. Third Parties</h2>
-    <p>We use Cloudflare for hosting and D1 for database storage. They process data on our behalf. We do not share your data with advertisers or other third parties for marketing.</p>
+    <p>We use Cloudflare for hosting and D1 for database storage. They process data on our behalf. The privacy banner may contact ipapi.co once for country detection. We do not share your data with advertisers or other third parties for marketing.</p>
 
     <h2>9. Children</h2>
     <p>The Service is not intended for users under 13. We do not knowingly collect data from children under 13.</p>
@@ -111,6 +167,6 @@
   <script src="/nav-dropdown.js"></script>
   <script src="/emoji-data.js"></script>
   <script src="/shoot.js"></script>
-<script src="/cookie-banner.js" defer></script>
+  <script src="/cookie-banner.js" defer></script>
 </body>
 </html>
